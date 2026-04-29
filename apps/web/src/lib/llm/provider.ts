@@ -5,16 +5,52 @@ export interface ProviderConfig {
   model: string;
 }
 
+export type ProviderName = "openrouter" | "0g-compute";
+
+export type LLMUseCase =
+  | "genesis"
+  | "breeding-worldview"
+  | "breeding-skills"
+  | "skill-invocation";
+
+export interface ProviderRoutingConfig {
+  defaultProvider: ProviderName;
+  breedingProvider?: ProviderName;
+  providers: {
+    openrouter?: ProviderConfig;
+    "0g-compute"?: ProviderConfig;
+  };
+}
+
 export function createProvider(
-  provider: "openrouter",
+  provider: ProviderName,
   config: ProviderConfig
 ): LLMProvider {
   switch (provider) {
     case "openrouter":
       return createOpenRouterProvider(config);
+    case "0g-compute":
+      return createZeroGComputeProvider();
     default:
       throw new Error(`Unknown LLM provider: ${provider}`);
   }
+}
+
+export function createProviderForUseCase(
+  useCase: LLMUseCase,
+  config: ProviderRoutingConfig
+): LLMProvider {
+  const provider =
+    useCase === "breeding-worldview" || useCase === "breeding-skills"
+      ? config.breedingProvider ?? config.defaultProvider
+      : config.defaultProvider;
+  const providerConfig = config.providers[provider];
+
+  if (!providerConfig) {
+    throw new Error(`Missing config for LLM provider: ${provider}`);
+  }
+
+  return createProvider(provider, providerConfig);
 }
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -92,4 +128,10 @@ function createOpenRouterProvider(config: ProviderConfig): LLMProvider {
       }
     },
   };
+}
+
+function createZeroGComputeProvider(): LLMProvider {
+  throw new Error(
+    "0G Compute LLM provider is not implemented yet. Keep 0G SDK calls behind this adapter."
+  );
 }

@@ -1,15 +1,15 @@
 import type { StorageProvider } from "@thoughtline/shared";
-import type { AgentMetadata } from "@thoughtline/shared";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 
 export function createMemoryStorage(): StorageProvider {
-  const store = new Map<string, AgentMetadata>();
+  const store = new Map<string, Uint8Array>();
 
   return {
-    async upload(metadata) {
+    async upload(bytes) {
       const uri = `memory://${randomUUID()}`;
-      store.set(uri, structuredClone(metadata));
-      return uri;
+      store.set(uri, new Uint8Array(bytes));
+      const providerHash = createHash("sha256").update(bytes).digest("hex");
+      return { uri, providerHash };
     },
 
     async fetch(uri) {
@@ -17,7 +17,7 @@ export function createMemoryStorage(): StorageProvider {
       if (!data) {
         throw new Error(`Storage object not found: ${uri}`);
       }
-      return structuredClone(data);
+      return new Uint8Array(data);
     },
   };
 }

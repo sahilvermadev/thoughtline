@@ -1,6 +1,9 @@
-import type { AgentMetadata } from "./schema.js";
+export interface UploadResult {
+  uri: string;
+  providerHash?: string;
+}
 
 export interface StorageProvider {
-  upload(metadata: AgentMetadata): Promise<string>;
-  fetch(uri: string): Promise<AgentMetadata>;
+  upload(bytes: Uint8Array): Promise<UploadResult>;
+  fetch(uri: string): Promise<Uint8Array>;
 }

@@ -7,6 +7,10 @@ dist/
 .env.local
 .env.*.local
 
+# Local agent tooling / cloned reference repos
+.0g-skills/
+.codex
+
 # Hardhat
 artifacts/
 cache/

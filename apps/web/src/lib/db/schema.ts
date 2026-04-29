@@ -7,19 +7,21 @@ import {
   uuid,
   boolean,
 } from "drizzle-orm/pg-core";
-import type { Worldview } from "@thoughtline/shared";
+import type { PrivateWorldview, PublicProfile } from "@thoughtline/shared";
 
+// Drizzle is scaffolding only for V1. Demo-critical agent state is recovered
+// from chain + 0G Storage, not from these tables.
 export const agents = pgTable("agents", {
   id: uuid("id").primaryKey().defaultRandom(),
   tokenId: integer("token_id").unique(),
   ownerAddress: text("owner_address").notNull(),
-  name: text("name").notNull(),
-  description: text("description").notNull(),
-  worldview: jsonb("worldview").$type<Worldview>().notNull(),
+  publicProfile: jsonb("public_profile").$type<PublicProfile>().notNull(),
+  privateWorldview: jsonb("private_worldview").$type<PrivateWorldview>(),
   parentAId: uuid("parent_a_id").references((): any => agents.id),
   parentBId: uuid("parent_b_id").references((): any => agents.id),
-  generation: integer("generation").notNull().default(0),
-  storageUri: text("storage_uri"),
+  publicProfileUri: text("public_profile_uri"),
+  privateWorldviewUri: text("private_worldview_uri"),
+  dataHash: text("data_hash"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

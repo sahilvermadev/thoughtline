@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import type { LLMProvider, LLMMessage } from "@thoughtline/shared";
-import { createStorage } from "../../storage/index.js";
+import { createAgentArchive } from "../../agent-archive/index.js";
+import { createMemoryStorage } from "../../storage/memory.js";
 import { createAgentFromText } from "../create-from-text.js";
+import type { EncryptionKey } from "../../crypto/index.js";
 
 function fakeLLM(
   responses: string[],
@@ -29,12 +31,46 @@ const validWorldview = {
   freeform: "A thoughtful analyst who values truth.",
 };
 
+const validSkill = {
+  id: "analyze-tradeoffs",
+  name: "Analyze Tradeoffs",
+  description: "Helps compare decisions through explicit tradeoffs.",
+  skillMarkdown: `---
+name: Analyze Tradeoffs
+description: Helps compare decisions through explicit tradeoffs.
+---
+
+## When to Use
+
+Use this for difficult choices.
+
+## Inputs
+
+- A decision prompt
+
+## Procedure
+
+1. Identify options.
+2. Compare tradeoffs.
+
+## Output
+
+Return a recommendation.`,
+  source: "genesis" as const,
+  parentSkillIds: [],
+};
+
+const validExtraction = {
+  privateWorldview: validWorldview,
+  skills: [validSkill],
+};
+
 describe("createAgentFromText", () => {
   it("creates an agent from a single source with worldview and description", async () => {
-    const storage = createStorage("memory");
+    const archive = createAgentArchive(createMemoryStorage());
     const llm = fakeLLM([
       // First call: extract worldview from sources
-      JSON.stringify(validWorldview),
+      JSON.stringify(validExtraction),
       // Second call: generate description
       "A curious and honest advisor who values truth above all.",
     ]);
@@ -43,30 +79,38 @@ describe("createAgentFromText", () => {
       {
         name: "The Analyst",
         sources: [{ text: "I believe in curiosity and honesty above all." }],
+        encryptionKey: testKey(),
       },
-      { llm, storage }
+      { llm, archive }
     );
 
     expect(agent.name).toBe("The Analyst");
-    expect(agent.worldview).toEqual(validWorldview);
+    expect(agent.privateWorldview).toEqual(validWorldview);
+    expect(agent.skills).toEqual([validSkill]);
     expect(agent.description).toBe(
       "A curious and honest advisor who values truth above all."
     );
     expect(agent.generation).toBe(0);
     expect(agent.parentIds).toBeNull();
-    expect(agent.storageUri).toBeTruthy();
+    expect(agent.publicUri).toBeTruthy();
+    expect(agent.privateUri).toBeTruthy();
+    expect(agent.dataHash).toMatch(/^[0-9a-f]{64}$/);
 
     // Verify it was actually stored
-    const fetched = await storage.fetch(agent.storageUri);
-    expect(fetched.name).toBe("The Analyst");
-    expect(fetched.worldview).toEqual(validWorldview);
+    const fetched = await archive.load(
+      agent.publicUri,
+      agent.privateUri,
+      testKey()
+    );
+    expect(fetched.publicProfile.name).toBe("The Analyst");
+    expect(fetched.privateWorldview).toEqual(validWorldview);
   });
 
   it("includes multiple labeled sources in the LLM prompt", async () => {
-    const storage = createStorage("memory");
+    const archive = createAgentArchive(createMemoryStorage());
     let capturedPrompt = "";
     const llm = fakeLLM(
-      [JSON.stringify(validWorldview), "A description."],
+      [JSON.stringify(validExtraction), "A description."],
       (messages) => {
         // Capture the first call's user message (worldview extraction)
         if (!capturedPrompt) {
@@ -84,8 +128,9 @@ describe("createAgentFromText", () => {
           { label: "book excerpt", text: "Discipline is the path." },
           { text: "Always question authority." },
         ],
+        encryptionKey: testKey(),
       },
-      { llm, storage }
+      { llm, archive }
     );
 
     expect(capturedPrompt).toContain("Source 1 (blog post)");
@@ -98,7 +143,7 @@ describe("createAgentFromText", () => {
   });
 
   it("summarizes sources individually when total text exceeds threshold", async () => {
-    const storage = createStorage("memory");
+    const archive = createAgentArchive(createMemoryStorage());
     const chatCalls: LLMMessage[][] = [];
 
     // Large text: 3 sources each over 20k chars
@@ -112,7 +157,7 @@ describe("createAgentFromText", () => {
         // Calls 1-3: summarize each source
         if (callNum <= 3) return { content: `Summary of source ${callNum}.` };
         // Call 4: extract worldview from summaries
-        if (callNum === 4) return { content: JSON.stringify(validWorldview) };
+        if (callNum === 4) return { content: JSON.stringify(validExtraction) };
         // Call 5: generate description
         return { content: "A description." };
       },
@@ -129,8 +174,9 @@ describe("createAgentFromText", () => {
           { label: "book 2", text: largeText },
           { label: "book 3", text: largeText },
         ],
+        encryptionKey: testKey(),
       },
-      { llm, storage }
+      { llm, archive }
     );
 
     // Should have 5 calls: 3 summarize + 1 worldview + 1 description
@@ -146,23 +192,30 @@ describe("createAgentFromText", () => {
   });
 
   it("rejects empty sources array", async () => {
-    const storage = createStorage("memory");
-    const llm = fakeLLM([]);
-
-    await expect(
-      createAgentFromText({ name: "Test", sources: [] }, { llm, storage })
-    ).rejects.toThrow(/at least one source/i);
-  });
-
-  it("rejects empty name", async () => {
-    const storage = createStorage("memory");
+    const archive = createAgentArchive(createMemoryStorage());
     const llm = fakeLLM([]);
 
     await expect(
       createAgentFromText(
-        { name: "", sources: [{ text: "some text" }] },
-        { llm, storage }
+        { name: "Test", sources: [], encryptionKey: testKey() },
+        { llm, archive }
+      )
+    ).rejects.toThrow(/at least one source/i);
+  });
+
+  it("rejects empty name", async () => {
+    const archive = createAgentArchive(createMemoryStorage());
+    const llm = fakeLLM([JSON.stringify(validExtraction)]);
+
+    await expect(
+      createAgentFromText(
+        { name: "", sources: [{ text: "some text" }], encryptionKey: testKey() },
+        { llm, archive }
       )
     ).rejects.toThrow(/name is required/i);
   });
 });
+
+function testKey(): EncryptionKey {
+  return new Uint8Array(32).fill(2);
+}
