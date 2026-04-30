@@ -22,10 +22,17 @@ ThoughtLine is a hackathon tracer bullet for minting user-created advisor agents
 
 Not done yet: public gallery, proof UI, owner unlock UI for existing iNFTs, skill invocation UI, paid access UI, breeding UI/API, and real 0G Compute / sealed inference.
 
-## Setup
+## Run Locally
+
+Install dependencies from the repo root:
 
 ```bash
 pnpm install
+```
+
+Create a local web env file:
+
+```bash
 cp apps/web/.env.example apps/web/.env.local
 ```
 
@@ -41,6 +48,20 @@ AUTHORIZED_RUNTIME_PUBLIC_KEY_JWK=...
 AUTHORIZED_RUNTIME_PRIVATE_KEY_JWK=...
 ```
 
+Start the web app:
+
+```bash
+pnpm --filter web dev
+```
+
+Open `http://localhost:3000`.
+
+You can also start all workspace dev tasks through Turbo:
+
+```bash
+pnpm dev
+```
+
 For 0G Storage:
 
 ```bash
@@ -48,14 +69,6 @@ STORAGE_ADAPTER=0g
 OG_PRIVATE_KEY=...
 OG_STORAGE_INDEXER=https://indexer-storage-testnet-turbo.0g.ai
 ```
-
-## Run
-
-```bash
-pnpm dev
-```
-
-Open `http://localhost:3000`.
 
 The current UI uses the browser wallet provider directly. It asks the wallet to:
 
@@ -168,6 +181,8 @@ The architecture is intended to swap the stub runtime for real 0G sealed executi
 
 ## Test
 
+Full workspace checks:
+
 ```bash
 pnpm test
 pnpm build
@@ -177,6 +192,7 @@ Useful focused checks:
 
 ```bash
 pnpm --filter web test
+pnpm --filter web exec tsc --noEmit
 pnpm --filter web build
 pnpm --filter contracts test
 ```
