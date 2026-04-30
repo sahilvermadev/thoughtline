@@ -15,3 +15,42 @@ export async function emit(
 ): Promise<void> {
   await emitEvent?.(event);
 }
+
+export async function emitProgressAsPipelineEvent(
+  emitEvent: EmitPipelineEvent | undefined,
+  event: string,
+  data: unknown
+): Promise<void> {
+  await emit(emitEvent, progressToPipelineEvent(event, data));
+}
+
+function progressToPipelineEvent(event: string, data: unknown): PipelineEvent {
+  switch (event) {
+    case "synthesizing-worldview":
+    case "synthesizing-skills":
+    case "encrypting":
+      return { type: event };
+    case "uploading":
+      return {
+        type: "uploading",
+        target: readUploadTarget(data),
+      };
+    default:
+      return { type: "ready", payload: data };
+  }
+}
+
+function readUploadTarget(data: unknown): "public" | "private" | "both" {
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    "target" in data &&
+    ((data as { target?: unknown }).target === "public" ||
+      (data as { target?: unknown }).target === "private" ||
+      (data as { target?: unknown }).target === "both")
+  ) {
+    return (data as { target: "public" | "private" | "both" }).target;
+  }
+
+  return "both";
+}

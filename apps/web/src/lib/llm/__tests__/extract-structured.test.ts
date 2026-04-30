@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import type { LLMProvider, LLMMessage } from "@thoughtline/shared";
-import { extractStructured } from "../extract-structured.js";
+import { extractStructured } from "../extract-structured";
 
 function fakeLLM(responses: string[]): LLMProvider {
   let i = 0;

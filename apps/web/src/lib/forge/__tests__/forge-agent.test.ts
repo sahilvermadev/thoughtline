@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import type { LLMProvider, SkillPackage, Worldview } from "@thoughtline/shared";
-import { createAgentArchive } from "../../agent-archive/index.js";
-import { createMemoryStorage } from "../../storage/memory.js";
-import { forgeAgent } from "../forge-agent.js";
-import type { EncryptionKey } from "../../crypto/index.js";
+import { createAgentArchive } from "../../agent-archive/index";
+import { createMemoryStorage } from "../../storage/memory";
+import { forgeAgent } from "../forge-agent";
+import type { EncryptionKey } from "../../crypto/index";
 
 function fakeLLM(responses: string[]): LLMProvider {
   let i = 0;

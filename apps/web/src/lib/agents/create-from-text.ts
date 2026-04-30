@@ -1,10 +1,12 @@
 import type { LLMProvider } from "@thoughtline/shared";
-import { privateWorldviewSchema, skillPackageSchema } from "@thoughtline/shared";
+import { privateWorldviewSchema } from "@thoughtline/shared";
 import { z } from "zod";
-import { extractStructured } from "../llm/extract-structured.js";
-import type { AgentArchive } from "../agent-archive/index.js";
-import { forgeAgent, type ForgedAgent } from "../forge/forge-agent.js";
-import type { EncryptionKey } from "../crypto/index.js";
+import { extractStructured } from "../llm/extract-structured";
+import type { AgentArchive } from "../agent-archive/index";
+import { forgeAgent, type ForgedAgent } from "../forge/forge-agent";
+import type { EncryptionKey } from "../crypto/index";
+import { synthesizeGenesisSkills } from "../skills/synthesis";
+import { emitProgress, type ProgressEmitter } from "../progress";
 
 export interface TextSource {
   label?: string;
@@ -20,13 +22,13 @@ export interface CreateFromTextInput {
 export interface CreateFromTextDeps {
   llm: LLMProvider;
   archive: AgentArchive;
+  emit?: ProgressEmitter;
 }
 
 const MAX_TOTAL_CHARS = 50_000;
 
 const agentExtractionSchema = z.object({
   privateWorldview: privateWorldviewSchema,
-  skills: z.array(skillPackageSchema).min(1).max(5),
 });
 
 export async function createAgentFromText(
@@ -43,14 +45,16 @@ export async function createAgentFromText(
       name,
       parents: null,
       encryptionKey,
+      emit: deps.emit,
       synthesizeGenome: async () => {
         const sourcesText = await prepareSourcesText(llm, sources);
+        await emitProgress(deps.emit, "synthesizing-worldview");
         const extracted = await extractStructured(
           llm,
           [
             {
               role: "user",
-              content: `Extract a ThoughtLine agent genome from the following sources. The text describes a person's values, decision-making approach, perspective, and concrete capabilities.
+              content: `Extract the private worldview for a ThoughtLine agent from the following sources. The text describes a person's values, decision-making approach, perspective, and concrete capabilities.
 
 ${sourcesText}
 
@@ -62,17 +66,8 @@ Respond with a JSON object:
     "blindspots": string[] (0-10 biases or gaps in reasoning),
     "decisionStyle": "analytical" | "intuitive" | "deliberative" | "adaptive" | "contrarian",
     "freeform": string (a rich persona description synthesized from the sources, max 5000 chars)
-  },
-  "skills": SkillPackage[] (3-5 public SKILL.md-style capability packages)
+  }
 }
-
-Each skill package must have:
-- id: kebab-case stable id
-- name: human-readable capability name
-- description: short public description
-- skillMarkdown: markdown with frontmatter, "When to Use", "Inputs", "Procedure", and "Output" sections
-- source: "genesis"
-- parentSkillIds: []
 
 Respond ONLY with valid JSON, no other text.`,
             },
@@ -80,14 +75,14 @@ Respond ONLY with valid JSON, no other text.`,
           agentExtractionSchema
         );
 
-        return {
+        await emitProgress(deps.emit, "synthesizing-skills");
+        const skills = await synthesizeGenesisSkills(llm, {
+          agentName: name,
+          sourcesText,
           privateWorldview: extracted.privateWorldview,
-          skills: extracted.skills.map((skill) => ({
-            ...skill,
-            source: "genesis" as const,
-            parentSkillIds: [],
-          })),
-        };
+        });
+
+        return { privateWorldview: extracted.privateWorldview, skills };
       },
     },
     { llm, archive }

@@ -3,9 +3,13 @@ import type {
   PrivateWorldview,
   PublicProfile,
 } from "@thoughtline/shared";
-import type { EncryptionKey } from "../crypto/index.js";
-import type { AgentArchive } from "../agent-archive/index.js";
-import { createAgentFromBreeding } from "../breeding/create-from-breeding.js";
+import type { EncryptionKey } from "../crypto/index";
+import type { AgentArchive } from "../agent-archive/index";
+import {
+  assertCanUseCapability,
+  canUseCapability,
+} from "../authorization/access";
+import { createAgentFromBreeding } from "../breeding/create-from-breeding";
 
 export interface BreedingAccessRecord {
   ownerAddress: string;
@@ -73,11 +77,15 @@ export function canBreedWith(
   callerAddress: string,
   access: Pick<BreedingAccessRecord, "ownerAddress" | "authorizedBreeders">
 ): boolean {
-  const caller = normalizeAddress(callerAddress);
-  return (
-    caller === normalizeAddress(access.ownerAddress) ||
-    access.authorizedBreeders.some((user) => normalizeAddress(user) === caller)
-  );
+  return canUseCapability({
+    capability: "breeding",
+    callerAddress,
+    tokenId: "unknown",
+    access: {
+      ownerAddress: access.ownerAddress,
+      authorizedAddresses: access.authorizedBreeders,
+    },
+  });
 }
 
 function assertCanBreed(
@@ -85,11 +93,13 @@ function assertCanBreed(
   access: BreedingAccessRecord,
   tokenId: string
 ): void {
-  if (!canBreedWith(callerAddress, access)) {
-    throw new Error(`Caller is not authorized to breed with agent ${tokenId}`);
-  }
-}
-
-function normalizeAddress(address: string): string {
-  return address.toLowerCase();
+  assertCanUseCapability({
+    capability: "breeding",
+    callerAddress,
+    tokenId,
+    access: {
+      ownerAddress: access.ownerAddress,
+      authorizedAddresses: access.authorizedBreeders,
+    },
+  });
 }

@@ -1,10 +1,11 @@
 import type { LLMProvider, PrivateWorldview, PublicProfile } from "@thoughtline/shared";
 import { privateWorldviewSchema } from "@thoughtline/shared";
-import { extractStructured } from "../llm/extract-structured.js";
-import type { AgentArchive } from "../agent-archive/index.js";
-import { forgeAgent, type ForgedAgent } from "../forge/forge-agent.js";
-import type { EncryptionKey } from "../crypto/index.js";
-import { synthesizeChildSkills } from "../skills/synthesis.js";
+import { extractStructured } from "../llm/extract-structured";
+import type { AgentArchive } from "../agent-archive/index";
+import { forgeAgent, type ForgedAgent } from "../forge/forge-agent";
+import type { EncryptionKey } from "../crypto/index";
+import { synthesizeChildSkills } from "../skills/synthesis";
+import { emitProgress, type ProgressEmitter } from "../progress";
 
 export interface ParentAgent {
   id: string;
@@ -22,6 +23,7 @@ export interface BreedingInput {
 export interface BreedingDeps {
   llm: LLMProvider;
   archive: AgentArchive;
+  emit?: ProgressEmitter;
 }
 
 export async function createAgentFromBreeding(
@@ -47,7 +49,9 @@ export async function createAgentFromBreeding(
         },
       ],
       encryptionKey,
+      emit: deps.emit,
       synthesizeGenome: async () => {
+        await emitProgress(deps.emit, "synthesizing-worldview");
         const privateWorldview = await extractStructured(
           llm,
           [
@@ -81,6 +85,7 @@ Respond ONLY with valid JSON, no other text.`,
           privateWorldviewSchema
         );
 
+        await emitProgress(deps.emit, "synthesizing-skills");
         const skills = await synthesizeChildSkills(llm, {
           childName: name,
           childWorldview: privateWorldview,

@@ -4,9 +4,13 @@ import type {
   PublicProfile,
   StorageProvider,
 } from "@thoughtline/shared";
-import { privateWorldviewSchema, publicProfileSchema } from "@thoughtline/shared";
-import type { CryptoProvider, EncryptionKey } from "../crypto/index.js";
-import { createWebCryptoProvider } from "../crypto/index.js";
+import { publicProfileSchema } from "@thoughtline/shared";
+import type { CryptoProvider, EncryptionKey } from "../crypto/index";
+import { createWebCryptoProvider } from "../crypto/index";
+import {
+  AUTHORIZED_RUNTIME_REQUIRES_V2_ENVELOPE_ERROR,
+  createPrivateWorldviewCodec,
+} from "./private-worldview-codec";
 
 export interface StoredAgent {
   publicUri: string;
@@ -26,6 +30,7 @@ export interface AgentArchive {
     uri: string,
     encryptionKey: EncryptionKey
   ): Promise<PrivateWorldview>;
+  loadPrivateForRuntime(uri: string): Promise<PrivateWorldview>;
   store(metadata: AgentMetadata, encryptionKey: EncryptionKey): Promise<StoredAgent>;
   load(
     publicUri: string,
@@ -34,10 +39,23 @@ export interface AgentArchive {
   ): Promise<AgentMetadata>;
 }
 
+export interface AgentArchiveOptions {
+  runtimePublicKeyJwk?: JsonWebKey;
+  runtimePrivateKeyJwk?: JsonWebKey;
+}
+
+export { AUTHORIZED_RUNTIME_REQUIRES_V2_ENVELOPE_ERROR };
+
 export function createAgentArchive(
   storage: StorageProvider,
-  crypto: CryptoProvider = createWebCryptoProvider()
+  crypto: CryptoProvider = createWebCryptoProvider(),
+  options?: AgentArchiveOptions
 ): AgentArchive {
+  const privateWorldviewCodec = createPrivateWorldviewCodec(
+    crypto,
+    options
+  );
+
   return {
     async storePublic(profile) {
       const bytes = encodeJson(profile);
@@ -52,17 +70,24 @@ export function createAgentArchive(
     },
 
     async storePrivate(worldview, encryptionKey) {
-      const plaintext = encodeJson(worldview);
-      const ciphertext = await crypto.encrypt(plaintext, encryptionKey);
-      const dataHash = await crypto.sha256Hex(ciphertext);
-      const { uri } = await storage.upload(ciphertext);
+      const bytes = await privateWorldviewCodec.encryptForStorage(
+        worldview,
+        encryptionKey
+      );
+      const dataHash = await crypto.sha256Hex(bytes);
+      const { uri } = await storage.upload(bytes);
       return { uri, dataHash };
     },
 
     async loadPrivate(uri, encryptionKey) {
-      const ciphertext = await storage.fetch(uri);
-      const plaintext = await crypto.decrypt(ciphertext, encryptionKey);
-      return privateWorldviewSchema.parse(decodeJson(plaintext));
+      return privateWorldviewCodec.decryptForOwner(
+        await storage.fetch(uri),
+        encryptionKey
+      );
+    },
+
+    async loadPrivateForRuntime(uri) {
+      return privateWorldviewCodec.decryptForRuntime(await storage.fetch(uri));
     },
 
     async store(metadata, encryptionKey) {

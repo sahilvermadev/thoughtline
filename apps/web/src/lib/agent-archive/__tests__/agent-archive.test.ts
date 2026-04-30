@@ -1,8 +1,15 @@
 import { describe, it, expect } from "vitest";
 import type { AgentMetadata } from "@thoughtline/shared";
-import { createMemoryStorage } from "../../storage/memory.js";
-import { createAgentArchive } from "../index.js";
-import type { CryptoProvider, EncryptionKey } from "../../crypto/index.js";
+import { createMemoryStorage } from "../../storage/memory";
+import {
+  AUTHORIZED_RUNTIME_REQUIRES_V2_ENVELOPE_ERROR,
+  createAgentArchive,
+} from "../index";
+import {
+  createWebCryptoProvider,
+  type CryptoProvider,
+  type EncryptionKey,
+} from "../../crypto/index";
 
 const sampleMetadata: AgentMetadata = {
   publicProfile: {
@@ -98,6 +105,81 @@ describe("AgentArchive", () => {
 
     await expect(archive.loadPublic(uri)).rejects.toThrow();
   });
+
+  it("stores a V2 private worldview envelope when a runtime public key is configured", async () => {
+    const storage = createMemoryStorage();
+    const keyPair = await generateRuntimeKeyPair();
+    const archive = createAgentArchive(storage, createWebCryptoProvider(), {
+      runtimePublicKeyJwk: keyPair.publicKeyJwk,
+      runtimePrivateKeyJwk: keyPair.privateKeyJwk,
+    });
+
+    const stored = await archive.storePrivate(
+      sampleMetadata.privateWorldview,
+      testKey()
+    );
+    const envelopeBytes = await storage.fetch(stored.uri);
+    const envelope = JSON.parse(new TextDecoder().decode(envelopeBytes)) as {
+      version: number;
+      ciphertext: string;
+      wrappedKeys: { owner: unknown; runtime: unknown };
+    };
+
+    expect(envelope.version).toBe(2);
+    expect(envelope.ciphertext).toBeTruthy();
+    expect(envelope.wrappedKeys.owner).toBeTruthy();
+    expect(envelope.wrappedKeys.runtime).toBeTruthy();
+    expect(stored.dataHash).toBe(
+      await createWebCryptoProvider().sha256Hex(envelopeBytes)
+    );
+  });
+
+  it("loads V2 private worldviews through owner and runtime unwrap paths", async () => {
+    const storage = createMemoryStorage();
+    const keyPair = await generateRuntimeKeyPair();
+    const archive = createAgentArchive(storage, createWebCryptoProvider(), {
+      runtimePublicKeyJwk: keyPair.publicKeyJwk,
+      runtimePrivateKeyJwk: keyPair.privateKeyJwk,
+    });
+
+    const stored = await archive.storePrivate(
+      sampleMetadata.privateWorldview,
+      testKey()
+    );
+
+    await expect(archive.loadPrivate(stored.uri, testKey())).resolves.toEqual(
+      sampleMetadata.privateWorldview
+    );
+    await expect(archive.loadPrivateForRuntime(stored.uri)).resolves.toEqual(
+      sampleMetadata.privateWorldview
+    );
+  });
+
+  it("keeps legacy raw ciphertext load support for owner unlock", async () => {
+    const storage = createMemoryStorage();
+    const archive = createAgentArchive(storage, fakeCrypto());
+    const stored = await archive.storePrivate(
+      sampleMetadata.privateWorldview,
+      testKey()
+    );
+
+    await expect(archive.loadPrivate(stored.uri, testKey())).resolves.toEqual(
+      sampleMetadata.privateWorldview
+    );
+  });
+
+  it("rejects legacy raw ciphertext for runtime private loads", async () => {
+    const storage = createMemoryStorage();
+    const archive = createAgentArchive(storage, fakeCrypto());
+    const stored = await archive.storePrivate(
+      sampleMetadata.privateWorldview,
+      testKey()
+    );
+
+    await expect(archive.loadPrivateForRuntime(stored.uri)).rejects.toThrow(
+      AUTHORIZED_RUNTIME_REQUIRES_V2_ENVELOPE_ERROR
+    );
+  });
 });
 
 function testKey(): EncryptionKey {
@@ -128,5 +210,32 @@ function fakeCrypto(): CryptoProvider {
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
     },
+  };
+}
+
+async function generateRuntimeKeyPair(): Promise<{
+  publicKeyJwk: JsonWebKey;
+  privateKeyJwk: JsonWebKey;
+}> {
+  const keyPair = await globalThis.crypto.subtle.generateKey(
+    {
+      name: "RSA-OAEP",
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: "SHA-256",
+    },
+    true,
+    ["encrypt", "decrypt"]
+  );
+
+  return {
+    publicKeyJwk: await globalThis.crypto.subtle.exportKey(
+      "jwk",
+      keyPair.publicKey
+    ),
+    privateKeyJwk: await globalThis.crypto.subtle.exportKey(
+      "jwk",
+      keyPair.privateKey
+    ),
   };
 }

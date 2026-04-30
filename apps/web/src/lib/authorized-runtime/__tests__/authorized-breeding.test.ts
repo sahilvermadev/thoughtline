@@ -5,13 +5,13 @@ import type {
   PublicProfile,
   SkillPackage,
 } from "@thoughtline/shared";
-import { createAgentArchive } from "../../agent-archive/index.js";
-import { createMemoryStorage } from "../../storage/memory.js";
+import { createAgentArchive } from "../../agent-archive/index";
+import { createMemoryStorage } from "../../storage/memory";
 import {
   canBreedWith,
   createAuthorizedBreedingRuntime,
   type BreedingAccessReader,
-} from "../breeding.js";
+} from "../breeding";
 
 const skill: SkillPackage = {
   id: "reason-clearly",

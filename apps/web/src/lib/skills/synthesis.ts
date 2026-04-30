@@ -6,7 +6,7 @@ import type {
 } from "@thoughtline/shared";
 import { skillPackageSchema } from "@thoughtline/shared";
 import { z } from "zod";
-import { extractStructured } from "../llm/extract-structured.js";
+import { extractStructured } from "../llm/extract-structured";
 
 const genesisSkillsSchema = z.object({
   skills: z.array(skillPackageSchema).min(1).max(5),

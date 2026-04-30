@@ -1,8 +1,12 @@
 import type { LLMProvider } from "@thoughtline/shared";
-import type { AgentArchive } from "../agent-archive/index.js";
-import type { BreedingInput } from "../breeding/create-from-breeding.js";
-import { createAgentFromBreeding } from "../breeding/create-from-breeding.js";
-import { emit, type EmitPipelineEvent } from "./events.js";
+import type { AgentArchive } from "../agent-archive/index";
+import type { BreedingInput } from "../breeding/create-from-breeding";
+import { createAgentFromBreeding } from "../breeding/create-from-breeding";
+import {
+  emit,
+  emitProgressAsPipelineEvent,
+  type EmitPipelineEvent,
+} from "./events";
 
 export interface RunBreedingPipelineDeps {
   llm: LLMProvider;
@@ -15,9 +19,12 @@ export async function runBreedingPipeline(
   deps: RunBreedingPipelineDeps
 ) {
   await emit(deps.emit, { type: "preparing" });
-  await emit(deps.emit, { type: "synthesizing-worldview" });
-  await emit(deps.emit, { type: "synthesizing-skills" });
-  const agent = await createAgentFromBreeding(input, deps);
+  const agent = await createAgentFromBreeding(input, {
+    ...deps,
+    emit: async (event, data) => {
+      await emitProgressAsPipelineEvent(deps.emit, event, data);
+    },
+  });
   await emit(deps.emit, { type: "ready", payload: agent });
   return agent;
 }

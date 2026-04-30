@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import { createProvider } from "../provider.js";
+import { createProvider, createProviderForUseCaseFromEnv } from "../provider";
 
 const server = setupServer();
 
@@ -159,5 +159,27 @@ describe("OpenRouter provider", () => {
     expect(() =>
       createProvider("bogus" as any, { apiKey: "x", model: "y" })
     ).toThrow(/Unknown LLM provider: bogus/);
+  });
+
+  it("creates providers from use-case environment routing", async () => {
+    server.use(
+      http.post("https://openrouter.ai/api/v1/chat/completions", async ({ request }) => {
+        const body = (await request.json()) as { model: string };
+        expect(body.model).toBe("test-model");
+        return HttpResponse.json({
+          choices: [{ message: { role: "assistant", content: "ok" } }],
+        });
+      })
+    );
+
+    const provider = createProviderForUseCaseFromEnv("conversation", {
+      LLM_PROVIDER: "openrouter",
+      OPENROUTER_API_KEY: "test-key",
+      OPENROUTER_MODEL: "test-model",
+    });
+
+    await expect(
+      provider.chat([{ role: "user", content: "test" }])
+    ).resolves.toMatchObject({ content: "ok" });
   });
 });

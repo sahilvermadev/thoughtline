@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.ts --network 0g-testnet",
     "test": "hardhat test",
     "lint": "hardhat check"
   },

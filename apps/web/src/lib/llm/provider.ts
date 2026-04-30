@@ -11,7 +11,7 @@ export type LLMUseCase =
   | "genesis"
   | "breeding-worldview"
   | "breeding-skills"
-  | "skill-invocation";
+  | "conversation";
 
 export interface ProviderRoutingConfig {
   defaultProvider: ProviderName;
@@ -51,6 +51,41 @@ export function createProviderForUseCase(
   }
 
   return createProvider(provider, providerConfig);
+}
+
+export function createProviderForUseCaseFromEnv(
+  useCase: LLMUseCase,
+  env: Record<string, string | undefined> = process.env
+): LLMProvider {
+  const defaultProvider = parseProviderName(env.LLM_PROVIDER ?? "openrouter");
+  const breedingProvider = env.BREEDING_LLM_PROVIDER
+    ? parseProviderName(env.BREEDING_LLM_PROVIDER)
+    : undefined;
+  const selectedProvider =
+    useCase === "breeding-worldview" || useCase === "breeding-skills"
+      ? breedingProvider ?? defaultProvider
+      : defaultProvider;
+
+  return createProviderForUseCase(useCase, {
+    defaultProvider,
+    breedingProvider,
+    providers: {
+      openrouter:
+        selectedProvider === "openrouter"
+          ? {
+              apiKey: requireEnv("OPENROUTER_API_KEY", env),
+              model: env.OPENROUTER_MODEL ?? "anthropic/claude-3.5-sonnet",
+            }
+          : undefined,
+      "0g-compute":
+        selectedProvider === "0g-compute"
+          ? {
+              apiKey: env.OG_COMPUTE_API_KEY ?? "",
+              model: env.OG_COMPUTE_MODEL ?? "",
+            }
+          : undefined,
+    },
+  });
 }
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -134,4 +169,18 @@ function createZeroGComputeProvider(): LLMProvider {
   throw new Error(
     "0G Compute LLM provider is not implemented yet. Keep 0G SDK calls behind this adapter."
   );
+}
+
+function parseProviderName(value: string): ProviderName {
+  if (value === "openrouter" || value === "0g-compute") return value;
+  throw new Error(`Unknown LLM provider: ${value}`);
+}
+
+function requireEnv(
+  name: string,
+  env: Record<string, string | undefined>
+): string {
+  const value = env[name];
+  if (!value) throw new Error(`Missing required environment variable: ${name}`);
+  return value;
 }

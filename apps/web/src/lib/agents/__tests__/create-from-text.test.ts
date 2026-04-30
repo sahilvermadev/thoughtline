@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import type { LLMProvider, LLMMessage } from "@thoughtline/shared";
-import { createAgentArchive } from "../../agent-archive/index.js";
-import { createMemoryStorage } from "../../storage/memory.js";
-import { createAgentFromText } from "../create-from-text.js";
-import type { EncryptionKey } from "../../crypto/index.js";
+import { createAgentArchive } from "../../agent-archive/index";
+import { createMemoryStorage } from "../../storage/memory";
+import { createAgentFromText } from "../create-from-text";
+import type { EncryptionKey } from "../../crypto/index";
 
 function fakeLLM(
   responses: string[],
@@ -62,8 +62,8 @@ Return a recommendation.`,
 
 const validExtraction = {
   privateWorldview: validWorldview,
-  skills: [validSkill],
 };
+const validSkillsExtraction = { skills: [validSkill] };
 
 describe("createAgentFromText", () => {
   it("creates an agent from a single source with worldview and description", async () => {
@@ -71,7 +71,9 @@ describe("createAgentFromText", () => {
     const llm = fakeLLM([
       // First call: extract worldview from sources
       JSON.stringify(validExtraction),
-      // Second call: generate description
+      // Second call: synthesize public skill packages
+      JSON.stringify(validSkillsExtraction),
+      // Third call: generate description
       "A curious and honest advisor who values truth above all.",
     ]);
 
@@ -110,7 +112,11 @@ describe("createAgentFromText", () => {
     const archive = createAgentArchive(createMemoryStorage());
     let capturedPrompt = "";
     const llm = fakeLLM(
-      [JSON.stringify(validExtraction), "A description."],
+      [
+        JSON.stringify(validExtraction),
+        JSON.stringify(validSkillsExtraction),
+        "A description.",
+      ],
       (messages) => {
         // Capture the first call's user message (worldview extraction)
         if (!capturedPrompt) {
@@ -158,7 +164,11 @@ describe("createAgentFromText", () => {
         if (callNum <= 3) return { content: `Summary of source ${callNum}.` };
         // Call 4: extract worldview from summaries
         if (callNum === 4) return { content: JSON.stringify(validExtraction) };
-        // Call 5: generate description
+        // Call 5: synthesize skills
+        if (callNum === 5) {
+          return { content: JSON.stringify(validSkillsExtraction) };
+        }
+        // Call 6: generate description
         return { content: "A description." };
       },
       async *chatStream() {
@@ -179,8 +189,8 @@ describe("createAgentFromText", () => {
       { llm, archive }
     );
 
-    // Should have 5 calls: 3 summarize + 1 worldview + 1 description
-    expect(chatCalls.length).toBe(5);
+    // Should have 6 calls: 3 summarize + 1 worldview + 1 skills + 1 description
+    expect(chatCalls.length).toBe(6);
 
     // The worldview extraction call (4th) should contain summaries, not raw text
     const worldviewCall = chatCalls[3];
@@ -205,7 +215,10 @@ describe("createAgentFromText", () => {
 
   it("rejects empty name", async () => {
     const archive = createAgentArchive(createMemoryStorage());
-    const llm = fakeLLM([JSON.stringify(validExtraction)]);
+    const llm = fakeLLM([
+      JSON.stringify(validExtraction),
+      JSON.stringify(validSkillsExtraction),
+    ]);
 
     await expect(
       createAgentFromText(

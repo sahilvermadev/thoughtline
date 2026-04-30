@@ -1,8 +1,12 @@
 import type { LLMProvider } from "@thoughtline/shared";
-import type { AgentArchive } from "../agent-archive/index.js";
-import type { CreateFromTextInput } from "../agents/create-from-text.js";
-import { createAgentFromText } from "../agents/create-from-text.js";
-import { emit, type EmitPipelineEvent } from "./events.js";
+import type { AgentArchive } from "../agent-archive/index";
+import type { CreateFromTextInput } from "../agents/create-from-text";
+import { createAgentFromText } from "../agents/create-from-text";
+import {
+  emit,
+  emitProgressAsPipelineEvent,
+  type EmitPipelineEvent,
+} from "./events";
 
 export interface RunGenesisPipelineDeps {
   llm: LLMProvider;
@@ -15,9 +19,12 @@ export async function runGenesisPipeline(
   deps: RunGenesisPipelineDeps
 ) {
   await emit(deps.emit, { type: "preparing" });
-  await emit(deps.emit, { type: "synthesizing-worldview" });
-  await emit(deps.emit, { type: "synthesizing-skills" });
-  const agent = await createAgentFromText(input, deps);
+  const agent = await createAgentFromText(input, {
+    ...deps,
+    emit: async (event, data) => {
+      await emitProgressAsPipelineEvent(deps.emit, event, data);
+    },
+  });
   await emit(deps.emit, { type: "ready", payload: agent });
   return agent;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LLMProvider, PrivateWorldview, PublicProfile } from "@thoughtline/shared";
-import { synthesizeChildSkills } from "../synthesis.js";
+import { synthesizeChildSkills } from "../synthesis";
 
 function fakeLLM(response: string): LLMProvider {
   return {

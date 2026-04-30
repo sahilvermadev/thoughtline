@@ -5,10 +5,10 @@ import type {
   SkillPackage,
   Worldview,
 } from "@thoughtline/shared";
-import { createAgentArchive } from "../../agent-archive/index.js";
-import { createMemoryStorage } from "../../storage/memory.js";
-import { createAgentFromBreeding } from "../create-from-breeding.js";
-import type { EncryptionKey } from "../../crypto/index.js";
+import { createAgentArchive } from "../../agent-archive/index";
+import { createMemoryStorage } from "../../storage/memory";
+import { createAgentFromBreeding } from "../create-from-breeding";
+import type { EncryptionKey } from "../../crypto/index";
 
 function fakeLLM(responses: string[]): LLMProvider {
   let i = 0;

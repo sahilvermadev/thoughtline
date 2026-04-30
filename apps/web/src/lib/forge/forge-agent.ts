@@ -5,8 +5,9 @@ import type {
   LLMProvider,
   SkillPackage,
 } from "@thoughtline/shared";
-import type { AgentArchive } from "../agent-archive/index.js";
-import type { EncryptionKey } from "../crypto/index.js";
+import type { AgentArchive } from "../agent-archive/index";
+import type { EncryptionKey } from "../crypto/index";
+import { emitProgress, type ProgressEmitter } from "../progress";
 
 export interface ForgeParent {
   id: string;
@@ -18,6 +19,7 @@ export interface ForgeInput {
   name: string;
   parents: [ForgeParent, ForgeParent] | null;
   encryptionKey: EncryptionKey;
+  emit?: ProgressEmitter;
   synthesizeGenome: () => Promise<{
     privateWorldview: PrivateWorldview;
     skills: SkillPackage[];
@@ -94,6 +96,8 @@ export async function forgeAgent(
     privateWorldview,
   };
 
+  await emitProgress(input.emit, "encrypting");
+  await emitProgress(input.emit, "uploading", { target: "both" });
   const stored = await archive.store(metadata, encryptionKey);
 
   return {
