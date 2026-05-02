@@ -10,6 +10,8 @@ export interface GenesisMintInput {
   sources: TextSource[];
   ownerAddress: string;
   unlockSignature: string;
+  expertiseType?: string;
+  sourceLabels?: string[];
 }
 
 export interface GenesisMintDeps {
@@ -35,6 +37,8 @@ export async function createGenesisMint(
       name: input.name,
       sources: input.sources,
       encryptionKey,
+      expertiseType: input.expertiseType,
+      sourceLabels: input.sourceLabels,
     },
     {
       llm: deps.llm,

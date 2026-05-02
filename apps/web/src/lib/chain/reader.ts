@@ -1,7 +1,12 @@
 import { createPublicClient, getAddress, http, type Address } from "viem";
 import {
+  preparePayForBreedingTransaction,
   preparePayForUsageTransaction,
+  prepareSetBreedingFeeTransaction,
+  prepareSetUsageFeeTransaction,
   THOUGHTLINE_AGENT_ABI,
+  type BreedingPaymentTransaction,
+  type FeeSettingTransaction,
   type UsagePaymentTransaction,
 } from "./thoughtline";
 import type { MintedAgentRecord } from "../gallery/public-agents";
@@ -19,14 +24,33 @@ export interface ThoughtLineChainReader {
   authorizedUsersOf(
     tokenId: bigint | number | string
   ): Promise<`0x${string}`[]>;
+  authorizedBreedersOf(
+    tokenId: bigint | number | string
+  ): Promise<`0x${string}`[]>;
   isAuthorizedUser(
     tokenId: bigint | number | string,
     user: string
   ): Promise<boolean>;
+  isAuthorizedBreeder(
+    tokenId: bigint | number | string,
+    user: string
+  ): Promise<boolean>;
   usageFee(tokenId: bigint | number | string): Promise<bigint>;
+  breedingFee(tokenId: bigint | number | string): Promise<bigint>;
   preparePayForUsage(
     tokenId: bigint | number | string
   ): Promise<UsagePaymentTransaction>;
+  preparePayForBreeding(
+    tokenId: bigint | number | string
+  ): Promise<BreedingPaymentTransaction>;
+  prepareSetUsageFee(
+    tokenId: bigint | number | string,
+    feeWei: bigint | number | string
+  ): Promise<FeeSettingTransaction>;
+  prepareSetBreedingFee(
+    tokenId: bigint | number | string,
+    feeWei: bigint | number | string
+  ): Promise<FeeSettingTransaction>;
 }
 
 export interface ThoughtLineChainReaderEnv
@@ -131,8 +155,21 @@ export function createThoughtLineChainReader(
       ])) as string[]).map((user) => getAddress(user) as `0x${string}`);
     },
 
+    async authorizedBreedersOf(tokenId) {
+      return ((await readContract("authorizedBreedersOf", [
+        BigInt(tokenId),
+      ])) as string[]).map((user) => getAddress(user) as `0x${string}`);
+    },
+
     async isAuthorizedUser(tokenId, user) {
       return (await readContract("isAuthorizedUser", [
+        BigInt(tokenId),
+        getAddress(user),
+      ])) as boolean;
+    },
+
+    async isAuthorizedBreeder(tokenId, user) {
+      return (await readContract("isAuthorizedBreeder", [
         BigInt(tokenId),
         getAddress(user),
       ])) as boolean;
@@ -142,12 +179,46 @@ export function createThoughtLineChainReader(
       return (await readContract("usageFee", [BigInt(tokenId)])) as bigint;
     },
 
+    async breedingFee(tokenId) {
+      return (await readContract("breedingFee", [BigInt(tokenId)])) as bigint;
+    },
+
     async preparePayForUsage(tokenId) {
       const available = requireAvailable();
       return preparePayForUsageTransaction({
         contractAddress: available.address,
         tokenId,
         usageFee: await this.usageFee(tokenId),
+        chainId: Number(env.NEXT_PUBLIC_CHAIN_ID ?? DEFAULT_GALILEO_CHAIN_ID),
+      });
+    },
+
+    async preparePayForBreeding(tokenId) {
+      const available = requireAvailable();
+      return preparePayForBreedingTransaction({
+        contractAddress: available.address,
+        tokenId,
+        breedingFee: await this.breedingFee(tokenId),
+        chainId: Number(env.NEXT_PUBLIC_CHAIN_ID ?? DEFAULT_GALILEO_CHAIN_ID),
+      });
+    },
+
+    async prepareSetUsageFee(tokenId, feeWei) {
+      const available = requireAvailable();
+      return prepareSetUsageFeeTransaction({
+        contractAddress: available.address,
+        tokenId,
+        feeWei,
+        chainId: Number(env.NEXT_PUBLIC_CHAIN_ID ?? DEFAULT_GALILEO_CHAIN_ID),
+      });
+    },
+
+    async prepareSetBreedingFee(tokenId, feeWei) {
+      const available = requireAvailable();
+      return prepareSetBreedingFeeTransaction({
+        contractAddress: available.address,
+        tokenId,
+        feeWei,
         chainId: Number(env.NEXT_PUBLIC_CHAIN_ID ?? DEFAULT_GALILEO_CHAIN_ID),
       });
     },

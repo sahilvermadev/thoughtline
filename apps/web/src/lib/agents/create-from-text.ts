@@ -17,6 +17,8 @@ export interface CreateFromTextInput {
   name: string;
   sources: TextSource[];
   encryptionKey: EncryptionKey;
+  expertiseType?: string;
+  sourceLabels?: string[];
 }
 
 export interface CreateFromTextDeps {
@@ -45,27 +47,45 @@ export async function createAgentFromText(
       name,
       parents: null,
       encryptionKey,
+      publicMetadata: {
+        ...optionalText("expertiseType", input.expertiseType),
+        ...optionalText("positioning", input.expertiseType),
+        sourceLabels: normalizeSourceLabels(input.sourceLabels),
+        sourceCount: sources.length,
+      },
       emit: deps.emit,
       synthesizeGenome: async () => {
         const sourcesText = await prepareSourcesText(llm, sources);
+        const expertiseContext = [
+          input.expertiseType
+            ? `Expertise type / positioning: ${input.expertiseType}`
+            : null,
+          input.sourceLabels && input.sourceLabels.length > 0
+            ? `Source labels: ${input.sourceLabels.join(", ")}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
         await emitProgress(deps.emit, "synthesizing-worldview");
         const extracted = await extractStructured(
           llm,
           [
             {
               role: "user",
-              content: `Extract the private worldview for a ThoughtLine agent from the following sources. The text describes a person's values, decision-making approach, perspective, and concrete capabilities.
+              content: `Extract the private worldview for a ThoughtLine expertise agent from the following sources. The text may include expertise notes, examples, work samples, source excerpts, decision-making approach, and concrete capabilities.
+
+${expertiseContext}
 
 ${sourcesText}
 
 Respond with a JSON object:
 {
   "privateWorldview": {
-    "values": string[] (1-10 core values identified in the text),
-    "heuristics": string[] (1-10 decision-making rules or principles),
-    "blindspots": string[] (0-10 biases or gaps in reasoning),
+    "values": string[] (1-10 core values or professional standards identified in the text),
+    "heuristics": string[] (1-10 decision-making rules, operating principles, or capability patterns),
+    "blindspots": string[] (0-10 biases, gaps, or situations where the expertise may not apply),
     "decisionStyle": "analytical" | "intuitive" | "deliberative" | "adaptive" | "contrarian",
-    "freeform": string (a rich persona description synthesized from the sources, max 5000 chars)
+    "freeform": string (a rich private operating model synthesized from the sources, max 5000 chars)
   }
 }
 
@@ -80,6 +100,8 @@ Respond ONLY with valid JSON, no other text.`,
           agentName: name,
           sourcesText,
           privateWorldview: extracted.privateWorldview,
+          expertiseType: input.expertiseType,
+          sourceLabels: input.sourceLabels,
         });
 
         return { privateWorldview: extracted.privateWorldview, skills };
@@ -88,6 +110,27 @@ Respond ONLY with valid JSON, no other text.`,
     { llm, archive }
   );
 }
+
+function normalizeSourceLabels(labels: string[] | undefined): string[] | undefined {
+  const normalized = labels
+    ?.map((label) => label.trim())
+    .filter((label, index, all) => label.length > 0 && all.indexOf(label) === index)
+    .slice(0, 20);
+  return normalized && normalized.length > 0 ? normalized : undefined;
+}
+
+function optionalText<K extends "expertiseType" | "positioning">(
+  key: K,
+  value: string | undefined
+): Pick<PublicProfileMetadata, K> | Record<string, never> {
+  const trimmed = value?.trim();
+  return trimmed ? ({ [key]: trimmed } as Pick<PublicProfileMetadata, K>) : {};
+}
+
+type PublicProfileMetadata = {
+  expertiseType?: string;
+  positioning?: string;
+};
 
 async function prepareSourcesText(
   llm: LLMProvider,

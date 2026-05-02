@@ -10,10 +10,11 @@ import { createMemoryStorage } from "../../storage/memory";
 import { createAgentFromBreeding } from "../create-from-breeding";
 import type { EncryptionKey } from "../../crypto/index";
 
-function fakeLLM(responses: string[]): LLMProvider {
+function fakeLLM(responses: string[], prompts: string[] = []): LLMProvider {
   let i = 0;
   return {
-    async chat() {
+    async chat(messages) {
+      prompts.push(messages.at(-1)?.content ?? "");
       const content = responses[i++];
       if (!content) throw new Error("No more fake LLM responses");
       return { content };
@@ -138,6 +139,7 @@ Return a balanced recommendation.`,
 describe("createAgentFromBreeding", () => {
   it("breeds two parents into a complete child agent", async () => {
     const archive = createAgentArchive(createMemoryStorage());
+    const prompts: string[] = [];
     const llm = fakeLLM([
       // Call 1: synthesize child worldview (extractStructured adds system msg)
       JSON.stringify(childWorldview),
@@ -145,7 +147,7 @@ describe("createAgentFromBreeding", () => {
       JSON.stringify({ skills: [childSkill] }),
       // Call 3: generate description
       "A balanced advisor who combines courage with wisdom.",
-    ]);
+    ], prompts);
 
     const publicProfileA: PublicProfile = {
       name: "The Bold",
@@ -175,7 +177,13 @@ describe("createAgentFromBreeding", () => {
     };
 
     const child = await createAgentFromBreeding(
-      { name: "The Balanced", parentA, parentB, encryptionKey: testKey() },
+      {
+        name: "The Balanced",
+        childBrief: "Help founders choose reversible launch moves.",
+        parentA,
+        parentB,
+        encryptionKey: testKey(),
+      },
       { llm, archive }
     );
 
@@ -187,6 +195,9 @@ describe("createAgentFromBreeding", () => {
     );
     expect(child.generation).toBe(3); // max(0, 2) + 1
     expect(child.parentIds).toEqual(["parent-a-id", "parent-b-id"]);
+    expect(child.publicProfile.positioning).toBe(
+      "Help founders choose reversible launch moves."
+    );
     expect(child.publicUri).toBeTruthy();
     expect(child.privateUri).toBeTruthy();
     expect(child.dataHash).toMatch(/^[0-9a-f]{64}$/);
@@ -203,6 +214,15 @@ describe("createAgentFromBreeding", () => {
       "parent-b-id",
     ]);
     expect(fetched.publicProfile.generation).toBe(3);
+    expect(fetched.publicProfile.positioning).toBe(
+      "Help founders choose reversible launch moves."
+    );
+    expect(prompts[0]).toContain(
+      "Child brief / intended marketable purpose: Help founders choose reversible launch moves."
+    );
+    expect(prompts[1]).toContain(
+      "Child brief / intended marketable purpose: Help founders choose reversible launch moves."
+    );
   });
 });
 

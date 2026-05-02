@@ -93,8 +93,13 @@ describe("ThoughtLineAgent", function () {
       agent.interface.getFunction("iClone").selector,
       agent.interface.getFunction("authorizeUsage").selector,
       agent.interface.getFunction("revokeAuthorization").selector,
-      agent.interface.getFunction("authorizedUsersOf").selector,
+      agent.interface.getFunction("approve").selector,
+      agent.interface.getFunction("setApprovalForAll").selector,
       agent.interface.getFunction("delegateAccess").selector,
+      agent.interface.getFunction("ownerOf").selector,
+      agent.interface.getFunction("authorizedUsersOf").selector,
+      agent.interface.getFunction("getApproved").selector,
+      agent.interface.getFunction("isApprovedForAll").selector,
       agent.interface.getFunction("getDelegateAccess").selector,
     ];
     const metadataSelectors = [
@@ -212,6 +217,28 @@ describe("ThoughtLineAgent", function () {
       .withArgs(0, 1, other.address, user.address);
     expect(await agent.ownerOf(1)).to.equal(user.address);
     expect(await agent.dataHash(1)).to.equal(cloneHash);
+  });
+
+  it("rejects transfer and clone proofs that do not match the current data hash", async function () {
+    const { agent, user, other } = await deployFixture();
+    const currentHash = ethers.keccak256(ethers.toUtf8Bytes("current"));
+    const staleHash = ethers.keccak256(ethers.toUtf8Bytes("stale"));
+    const newHash = ethers.keccak256(ethers.toUtf8Bytes("new"));
+
+    await agent
+      .connect(user)
+      .mintGenesis("0g://public", "0g://private", currentHash);
+
+    await expect(
+      agent.connect(user).iTransfer(other.address, 0, [proof(staleHash, newHash)])
+    ).to.be.revertedWith("Stale data hash");
+
+    await expect(
+      agent.connect(user).iClone(other.address, 0, [proof(staleHash, newHash)])
+    ).to.be.revertedWith("Stale data hash");
+
+    expect(await agent.ownerOf(0)).to.equal(user.address);
+    expect(await agent.dataHash(0)).to.equal(currentHash);
   });
 });
 

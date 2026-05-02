@@ -51,6 +51,10 @@ export const publicProfileSchema = z.object({
   parentIds: z.tuple([z.string(), z.string()]).nullable(),
   generation: z.number().int().min(0),
   createdAt: z.string().datetime(),
+  expertiseType: z.string().min(1).max(200).optional(),
+  sourceLabels: z.array(z.string().min(1).max(100)).max(20).optional(),
+  sourceCount: z.number().int().min(0).optional(),
+  positioning: z.string().min(1).max(1000).optional(),
 });
 
 export type PublicProfile = z.infer<typeof publicProfileSchema>;

@@ -88,6 +88,8 @@ describe("POST /api/genesis", () => {
         method: "POST",
         body: JSON.stringify({
           name: "Test Agent",
+          expertiseType: "Decision review specialist",
+          sourceLabels: ["founder notes", "customer calls"],
           ownerAddress: "0x1111111111111111111111111111111111111111",
           unlockSignature: "0xsigned",
           sources: [{ text: "I value clarity and careful tradeoffs." }],
@@ -110,6 +112,12 @@ describe("POST /api/genesis", () => {
     expect(ready.publicUri).toMatch(/^memory:\/\//);
     expect(ready.privateUri).toMatch(/^memory:\/\//);
     expect(ready.dataHash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect((ready.publicProfile as Record<string, unknown>).expertiseType).toBe(
+      "Decision review specialist"
+    );
+    expect((ready.publicProfile as Record<string, unknown>).sourceLabels).toEqual(
+      ["founder notes", "customer calls"]
+    );
 
     const decoded = decodeFunctionData({
       abi: THOUGHTLINE_AGENT_ABI,

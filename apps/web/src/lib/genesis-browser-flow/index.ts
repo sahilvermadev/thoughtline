@@ -24,6 +24,7 @@ export function useGenesisBrowserFlow() {
   const [events, setEvents] = useState<string[]>([]);
   const [ready, setReady] = useState<GenesisReadyPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mintTxHash, setMintTxHash] = useState<Hex | null>(null);
   const [isForging, setIsForging] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
@@ -36,6 +37,7 @@ export function useGenesisBrowserFlow() {
       events,
       ready,
       error,
+      mintTxHash,
       isForging,
       isSigning,
       isMinting,
@@ -51,10 +53,16 @@ export function useGenesisBrowserFlow() {
           setError(formatError(err));
         }
       },
-      forgeGenesis: async (input: { name: string; sourceText: string }) => {
+      forgeGenesis: async (input: {
+        name: string;
+        sourceText: string;
+        expertiseType?: string;
+        sourceLabels?: string[];
+      }) => {
         if (!address) return;
         setError(null);
         setReady(null);
+        setMintTxHash(null);
         setEvents([]);
         setIsForging(true);
 
@@ -78,9 +86,16 @@ export function useGenesisBrowserFlow() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               name: input.name,
+              expertiseType: input.expertiseType,
+              sourceLabels: input.sourceLabels,
               ownerAddress: address,
               unlockSignature,
-              sources: [{ label: "source", text: input.sourceText }],
+              sources: [
+                {
+                  label: input.sourceLabels?.[0] ?? "expertise-source",
+                  text: input.sourceText,
+                },
+              ],
             }),
           });
 
@@ -109,8 +124,10 @@ export function useGenesisBrowserFlow() {
         if (!address) return;
 
         try {
+          setError(null);
+          setMintTxHash(null);
           setIsMinting(true);
-          await getEthereum().request({
+          const txHash = (await getEthereum().request({
             method: "eth_sendTransaction",
             params: [
               {
@@ -119,7 +136,9 @@ export function useGenesisBrowserFlow() {
                 data: ready.mintCalldata,
               },
             ],
-          });
+          })) as Hex;
+          setMintTxHash(txHash);
+          setEvents((current) => [...current, "mint-submitted"]);
         } catch (err) {
           setError(formatError(err));
         } finally {
@@ -135,6 +154,7 @@ export function useGenesisBrowserFlow() {
       isForging,
       isMinting,
       isSigning,
+      mintTxHash,
       ready,
     ]
   );

@@ -22,7 +22,7 @@ export async function extractStructured<T>(
     ]);
 
     try {
-      const parsed = JSON.parse(response.content);
+      const parsed = JSON.parse(extractJsonText(response.content));
       return schema.parse(parsed);
     } catch (e) {
       lastError = e as Error;
@@ -42,4 +42,10 @@ export async function extractStructured<T>(
   throw new Error(
     `Failed to extract structured data after ${maxRetries + 1} attempts: ${lastError?.message}`
   );
+}
+
+function extractJsonText(content: string): string {
+  const trimmed = content.trim();
+  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
+  return fenced ? fenced[1].trim() : trimmed;
 }

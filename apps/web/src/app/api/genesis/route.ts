@@ -9,6 +9,8 @@ export const runtime = "nodejs";
 
 const requestSchema = z.object({
   name: z.string().min(1).max(100),
+  expertiseType: z.string().trim().min(1).max(200).optional(),
+  sourceLabels: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
   sources: z
     .array(
       z.object({

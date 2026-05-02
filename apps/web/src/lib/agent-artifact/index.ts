@@ -1,5 +1,9 @@
 import type { PublicProfile } from "@thoughtline/shared";
-import { encodeMintGenesisCalldata, normalizeBytes32 } from "../chain/thoughtline";
+import {
+  encodeMintChildCalldata,
+  encodeMintGenesisCalldata,
+  normalizeBytes32,
+} from "../chain/thoughtline";
 
 export interface StoredAgentArtifactInput {
   publicProfile: PublicProfile;
@@ -31,6 +35,8 @@ export interface GenesisMintArtifact {
   mintTransaction: MintTransactionPrep;
 }
 
+export interface ChildMintArtifact extends GenesisMintArtifact {}
+
 export function createGenesisMintArtifact(
   input: StoredAgentArtifactInput,
   env: Record<string, string | undefined> = process.env
@@ -40,6 +46,37 @@ export function createGenesisMintArtifact(
     publicUri: input.publicUri,
     privateUri: input.privateUri,
     dataHash,
+  });
+
+  return {
+    publicProfile: input.publicProfile,
+    publicUri: input.publicUri,
+    publicHash: input.publicHash,
+    privateUri: input.privateUri,
+    dataHash,
+    mintCalldata,
+    mintTransaction: {
+      to: parseContractAddress(env.NEXT_PUBLIC_CONTRACT_ADDRESS),
+      data: mintCalldata,
+      chainId: Number(env.NEXT_PUBLIC_CHAIN_ID ?? 16602),
+    },
+  };
+}
+
+export function createChildMintArtifact(
+  input: StoredAgentArtifactInput & {
+    parentTokenIdA: bigint | number | string;
+    parentTokenIdB: bigint | number | string;
+  },
+  env: Record<string, string | undefined> = process.env
+): ChildMintArtifact {
+  const dataHash = normalizeStoredAgentDataHash(input.dataHash);
+  const mintCalldata = encodeMintChildCalldata({
+    publicUri: input.publicUri,
+    privateUri: input.privateUri,
+    dataHash,
+    parentTokenIdA: input.parentTokenIdA,
+    parentTokenIdB: input.parentTokenIdB,
   });
 
   return {

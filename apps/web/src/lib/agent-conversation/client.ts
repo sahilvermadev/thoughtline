@@ -12,6 +12,13 @@ export interface SendAgentMessageInput {
   skillId?: string;
 }
 
+export interface SendAuthorizedAgentMessageInput {
+  tokenId: string;
+  callerAddress: string;
+  messages: AgentConversationMessage[];
+  skillId?: string;
+}
+
 export async function sendAgentConversationMessage(
   input: SendAgentMessageInput
 ): Promise<ConverseWithAgentResponse> {
@@ -35,6 +42,33 @@ export async function sendAgentConversationMessage(
 
   if (!("message" in body)) {
     throw new Error("Agent conversation returned no message");
+  }
+
+  return body;
+}
+
+export async function sendAuthorizedAgentConversationMessage(
+  input: SendAuthorizedAgentMessageInput
+): Promise<ConverseWithAgentResponse> {
+  const response = await fetch(`/api/agents/${input.tokenId}/ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      callerAddress: input.callerAddress,
+      messages: input.messages,
+      skillId: input.skillId,
+    }),
+  });
+
+  const body = (await response.json()) as
+    | ConverseWithAgentResponse
+    | { error?: string };
+  if (!response.ok) {
+    throw new Error("error" in body ? body.error : "Authorized ask failed");
+  }
+
+  if (!("message" in body)) {
+    throw new Error("Authorized ask returned no message");
   }
 
   return body;

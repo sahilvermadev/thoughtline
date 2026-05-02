@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PrivateWorldview, PublicProfile } from "@thoughtline/shared";
 import { createAgentArchive } from "@/lib/agent-archive";
-import { sendAgentConversationMessage } from "@/lib/agent-conversation/client";
+import {
+  sendAgentConversationMessage,
+  sendAuthorizedAgentConversationMessage,
+} from "@/lib/agent-conversation/client";
 import type { EthereumProvider } from "@/lib/browser-wallet";
 import { unlockAgentWorldview } from "@/lib/owner-unlock";
 import { createMemoryStorage } from "@/lib/storage/memory";
@@ -116,6 +119,40 @@ describe("agent workbench browser helpers", () => {
     ]);
     expect(requestBody.publicProfile.skills[0].id).toBe("decision-review");
     expect(requestBody.privateWorldview).toEqual(privateWorldview);
+
+    vi.unstubAllGlobals();
+  });
+
+  it("sends an authorized non-owner ask without a private worldview payload", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          message: {
+            role: "assistant",
+            content: "Use option A.",
+            usedSkillId: "decision-review",
+          },
+          usedSkillId: "decision-review",
+        })
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendAuthorizedAgentConversationMessage({
+      tokenId: "7",
+      callerAddress: nonOwner,
+      messages: [{ role: "user", content: "Pick an option." }],
+      skillId: "decision-review",
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/agents/7/ask");
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(requestBody).toEqual({
+      callerAddress: nonOwner,
+      messages: [{ role: "user", content: "Pick an option." }],
+      skillId: "decision-review",
+    });
+    expect(requestBody.privateWorldview).toBeUndefined();
 
     vi.unstubAllGlobals();
   });

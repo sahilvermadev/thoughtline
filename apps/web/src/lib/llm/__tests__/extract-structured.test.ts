@@ -33,6 +33,20 @@ describe("extractStructured", () => {
     expect(result).toEqual({ name: "Alice", score: 85 });
   });
 
+  it("accepts JSON wrapped in a markdown code fence", async () => {
+    const llm = fakeLLM([
+      '```json\n{"name":"Alice","score":85}\n```',
+    ]);
+
+    const result = await extractStructured(
+      llm,
+      [{ role: "user", content: "Rate Alice" }],
+      testSchema
+    );
+
+    expect(result).toEqual({ name: "Alice", score: 85 });
+  });
+
   it("retries once when LLM returns invalid JSON, sending the error back", async () => {
     const calls: LLMMessage[][] = [];
     const llm: LLMProvider = {

@@ -81,6 +81,8 @@ describe("createAgentFromText", () => {
       {
         name: "The Analyst",
         sources: [{ text: "I believe in curiosity and honesty above all." }],
+        expertiseType: "Research decision analyst",
+        sourceLabels: ["memo", "case study"],
         encryptionKey: testKey(),
       },
       { llm, archive }
@@ -94,6 +96,10 @@ describe("createAgentFromText", () => {
     );
     expect(agent.generation).toBe(0);
     expect(agent.parentIds).toBeNull();
+    expect(agent.publicProfile.expertiseType).toBe("Research decision analyst");
+    expect(agent.publicProfile.positioning).toBe("Research decision analyst");
+    expect(agent.publicProfile.sourceLabels).toEqual(["memo", "case study"]);
+    expect(agent.publicProfile.sourceCount).toBe(1);
     expect(agent.publicUri).toBeTruthy();
     expect(agent.privateUri).toBeTruthy();
     expect(agent.dataHash).toMatch(/^[0-9a-f]{64}$/);
@@ -105,6 +111,7 @@ describe("createAgentFromText", () => {
       testKey()
     );
     expect(fetched.publicProfile.name).toBe("The Analyst");
+    expect(fetched.publicProfile.sourceLabels).toEqual(["memo", "case study"]);
     expect(fetched.privateWorldview).toEqual(validWorldview);
   });
 
@@ -129,6 +136,8 @@ describe("createAgentFromText", () => {
     await createAgentFromText(
       {
         name: "Test",
+        expertiseType: "Enterprise risk reviewer",
+        sourceLabels: ["blog", "book"],
         sources: [
           { label: "blog post", text: "I value freedom." },
           { label: "book excerpt", text: "Discipline is the path." },
@@ -146,6 +155,10 @@ describe("createAgentFromText", () => {
     expect(capturedPrompt).toContain("Source 3");
     expect(capturedPrompt).not.toContain("Source 3 ("); // no label for source 3
     expect(capturedPrompt).toContain("Always question authority.");
+    expect(capturedPrompt).toContain(
+      "Expertise type / positioning: Enterprise risk reviewer"
+    );
+    expect(capturedPrompt).toContain("Source labels: blog, book");
   });
 
   it("summarizes sources individually when total text exceeds threshold", async () => {

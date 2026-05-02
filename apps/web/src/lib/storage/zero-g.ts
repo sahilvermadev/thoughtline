@@ -5,15 +5,16 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import {
+  readZeroGStorageConfig,
+  type ZeroGStorageConfig,
+} from "./zero-g/config";
+import { uploadWithCurrentFlowAbi } from "./zero-g/flow-upload";
+import { parseZeroGUri, rootHashToUri } from "./zero-g/uri";
 
-const DEFAULT_RPC_URL = "https://evmrpc-testnet.0g.ai";
-const DEFAULT_STORAGE_INDEXER = "https://indexer-storage-testnet-turbo.0g.ai";
-
-export interface ZeroGStorageConfig {
-  rpcUrl: string;
-  storageIndexer: string;
-  privateKey: string;
-}
+export type { ZeroGStorageConfig } from "./zero-g/config";
+export { readZeroGStorageConfig } from "./zero-g/config";
+export { parseZeroGUri, rootHashToUri } from "./zero-g/uri";
 
 export function createZeroGStorage(
   config: ZeroGStorageConfig = readZeroGStorageConfig()
@@ -46,10 +47,11 @@ export function createZeroGStorage(
         if (!rootHash) {
           throw new Error("0G merkle tree returned no root hash");
         }
-        const [, uploadErr] = await indexer.upload(
+        const [, uploadErr] = await uploadWithCurrentFlowAbi(
+          indexer,
           file,
           config.rpcUrl,
-          wallet as never
+          wallet
         );
         if (uploadErr) {
           throw new Error(`0G upload failed: ${formatSdkError(uploadErr)}`);
@@ -81,39 +83,6 @@ export function createZeroGStorage(
       }
     },
   };
-}
-
-export function parseZeroGUri(uri: string): string {
-  const match = /^0g:\/\/(0x[0-9a-fA-F]{64})$/.exec(uri);
-  if (!match) {
-    throw new Error(`Invalid 0G Storage URI: ${uri}`);
-  }
-  return match[1];
-}
-
-export function rootHashToUri(rootHash: string): string {
-  if (!/^0x[0-9a-fA-F]{64}$/.test(rootHash)) {
-    throw new Error(`Invalid 0G root hash: ${rootHash}`);
-  }
-  return `0g://${rootHash}`;
-}
-
-export function readZeroGStorageConfig(
-  env: Record<string, string | undefined> = process.env
-): ZeroGStorageConfig {
-  const privateKey = env.OG_PRIVATE_KEY ?? env.PRIVATE_KEY;
-  const rpcUrl = env.OG_RPC_URL ?? env.RPC_URL ?? DEFAULT_RPC_URL;
-  const storageIndexer =
-    env.OG_STORAGE_INDEXER ??
-    env.OG_STORAGE_ENDPOINT ??
-    env.STORAGE_INDEXER ??
-    DEFAULT_STORAGE_INDEXER;
-
-  if (!privateKey) {
-    throw new Error("Missing OG_PRIVATE_KEY or PRIVATE_KEY for 0G Storage");
-  }
-
-  return { rpcUrl, storageIndexer, privateKey };
 }
 
 function formatSdkError(error: unknown): string {

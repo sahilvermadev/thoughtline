@@ -15,6 +15,7 @@ export interface ParentAgent {
 
 export interface BreedingInput {
   name: string;
+  childBrief?: string;
   parentA: ParentAgent;
   parentB: ParentAgent;
   encryptionKey: EncryptionKey;
@@ -30,7 +31,7 @@ export async function createAgentFromBreeding(
   input: BreedingInput,
   deps: BreedingDeps
 ): Promise<ForgedAgent> {
-  const { name, parentA, parentB, encryptionKey } = input;
+  const { name, childBrief, parentA, parentB, encryptionKey } = input;
   const { llm, archive } = deps;
 
   return forgeAgent(
@@ -49,6 +50,9 @@ export async function createAgentFromBreeding(
         },
       ],
       encryptionKey,
+      publicMetadata: {
+        ...(childBrief?.trim() ? { positioning: childBrief.trim() } : {}),
+      },
       emit: deps.emit,
       synthesizeGenome: async () => {
         await emitProgress(deps.emit, "synthesizing-worldview");
@@ -57,7 +61,10 @@ export async function createAgentFromBreeding(
           [
             {
               role: "user",
-              content: `You are a worldview synthesizer. Given two parent advisor agents, create a child agent that inherits and resolves conflicts between their worldviews.
+              content: `You are a worldview synthesizer. Given two parent expertise agents, create a child agent for a specific marketable purpose while inheriting and resolving conflicts between their worldviews.
+
+Child name: ${name}
+Child brief / intended marketable purpose: ${childBrief?.trim() || "Not specified"}
 
 Parent A "${parentA.publicProfile.name}":
 ${JSON.stringify(parentA.privateWorldview, null, 2)}
@@ -66,11 +73,12 @@ Parent B "${parentB.publicProfile.name}":
 ${JSON.stringify(parentB.privateWorldview, null, 2)}
 
 Create a child worldview that:
-1. Inherits complementary values from both parents
-2. Resolves conflicting heuristics into coherent principles
-3. Identifies new blindspots that emerge from the synthesis
-4. Develops a decision style that balances both parents
-5. Writes a freeform persona that integrates both perspectives
+1. Serves the child brief as a concrete expertise product
+2. Inherits complementary values from both parents
+3. Resolves conflicting heuristics into coherent principles
+4. Identifies new blindspots that emerge from the synthesis
+5. Develops a decision style that balances both parents
+6. Writes a freeform private operating model that integrates both perspectives
 
 Respond with a JSON object matching this schema:
 - values: string[] (1-10 items)
@@ -88,6 +96,7 @@ Respond ONLY with valid JSON, no other text.`,
         await emitProgress(deps.emit, "synthesizing-skills");
         const skills = await synthesizeChildSkills(llm, {
           childName: name,
+          childBrief,
           childWorldview: privateWorldview,
           parentA,
           parentB,

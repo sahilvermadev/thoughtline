@@ -74,6 +74,10 @@ function getPublicAgentSearchText(agent: PublicAgentView): string {
     agent.privateUri,
     agent.publicProfile.name,
     agent.publicProfile.description,
+    agent.publicProfile.expertiseType ?? "",
+    agent.publicProfile.positioning ?? "",
+    ...(agent.publicProfile.sourceLabels ?? []),
+    agent.publicProfile.sourceCount?.toString() ?? "",
     ...agent.publicProfile.skills.map((skill) =>
       [skill.name, skill.description, skill.skillMarkdown, skill.id].join(" ")
     ),

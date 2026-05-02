@@ -1,10 +1,9 @@
 import type { StorageProvider } from "@thoughtline/shared";
-import {
-  createAgentArchive,
-  type AgentArchive,
-} from "../agent-archive/index";
+import type { AgentArchive } from "../agent-archive/index";
 import type { ThoughtLineChainReader } from "../chain/reader";
 import type { AgentAccessReader, AgentAccessRecord } from "./index";
+import type { BreedingAccessReader, BreedingAccessRecord } from "./breeding";
+import { createAgentAccessSnapshotReader } from "./access-snapshot";
 
 export interface ChainAgentAccessReaderDeps {
   chain: ThoughtLineChainReader;
@@ -15,28 +14,36 @@ export interface ChainAgentAccessReaderDeps {
 export function createChainAgentAccessReader(
   deps: ChainAgentAccessReaderDeps
 ): AgentAccessReader {
-  const archive = deps.archive ?? createAgentArchive(deps.storage);
+  const snapshots = createAgentAccessSnapshotReader(deps);
 
   return {
     async getAgentAccess(tokenId): Promise<AgentAccessRecord> {
-      const [ownerAddress, publicUri, privateUri, authorizedUsers] =
-        await Promise.all([
-          deps.chain.ownerOf(tokenId),
-          deps.chain.publicProfileURI(tokenId),
-          deps.chain.privateWorldviewURI(tokenId),
-          deps.chain.authorizedUsersOf(tokenId),
-        ]);
-
-      const [publicProfile, privateWorldview] = await Promise.all([
-        archive.loadPublic(publicUri),
-        archive.loadPrivateForRuntime(privateUri),
-      ]);
+      const snapshot = await snapshots.load(tokenId);
 
       return {
-        ownerAddress,
-        authorizedUsers,
-        publicProfile,
-        privateWorldview,
+        ownerAddress: snapshot.ownerAddress,
+        authorizedUsers: snapshot.authorizedUsers,
+        publicProfile: snapshot.publicProfile,
+        privateWorldview: snapshot.privateWorldview,
+      };
+    },
+  };
+}
+
+export function createChainBreedingAccessReader(
+  deps: ChainAgentAccessReaderDeps
+): BreedingAccessReader {
+  const snapshots = createAgentAccessSnapshotReader(deps);
+
+  return {
+    async getBreedingAccess(tokenId): Promise<BreedingAccessRecord> {
+      const snapshot = await snapshots.load(tokenId);
+
+      return {
+        ownerAddress: snapshot.ownerAddress,
+        authorizedBreeders: snapshot.authorizedBreeders,
+        publicProfile: snapshot.publicProfile,
+        privateWorldview: snapshot.privateWorldview,
       };
     },
   };

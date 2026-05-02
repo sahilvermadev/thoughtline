@@ -4,6 +4,7 @@ import type {
   PublicProfile,
 } from "@thoughtline/shared";
 import type { EncryptionKey } from "../crypto/index";
+import type { ProgressEmitter } from "../progress";
 import type { AgentArchive } from "../agent-archive/index";
 import {
   assertCanUseCapability,
@@ -27,7 +28,9 @@ export interface AuthorizedBreedingRuntimeInput {
   parentTokenIdB: string;
   callerAddress: string;
   childName: string;
+  childBrief?: string;
   encryptionKey: EncryptionKey;
+  emit?: ProgressEmitter;
 }
 
 export interface AuthorizedBreedingRuntimeDeps {
@@ -52,6 +55,7 @@ export function createAuthorizedBreedingRuntime(
       return createAgentFromBreeding(
         {
           name: input.childName,
+          childBrief: input.childBrief,
           parentA: {
             id: input.parentTokenIdA,
             publicProfile: parentA.publicProfile,
@@ -67,6 +71,7 @@ export function createAuthorizedBreedingRuntime(
         {
           llm: deps.llm,
           archive: deps.archive,
+          emit: input.emit,
         }
       );
     },

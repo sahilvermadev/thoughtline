@@ -19,10 +19,10 @@ Turborepo monorepo with pnpm workspaces:
 - **Runtime**: TypeScript + Node.js
 - **Frontend**: Next.js, RainbowKit + wagmi + viem. No SIWE in V1; use per-action wallet signatures for unlock.
 - **Database**: PostgreSQL + Drizzle ORM remains scaffolding only. V1 demo state is recovered from chain + 0G Storage.
-- **LLM**: Provider-agnostic abstraction. OpenRouter remains a reliability hedge; 0G Compute is used for breeding synthesis where practical.
+- **LLM**: Provider-agnostic abstraction. `LLM_PROVIDER=openrouter` uses OpenRouter. `LLM_PROVIDER=0g-router` uses the 0G Router API from server-side routes but is not the current demo path because the available testnet Private Computer key did not authenticate against `router-api.0g.ai`. `LLM_PROVIDER=0g-compute` is the active demo mode and uses the Direct SDK path through a fixed `OG_COMPUTE_PROVIDER_ADDRESS`; the demo operator funds/transfers/acknowledges that provider before app startup. No 0G mode has a hidden OpenRouter fallback.
 - **Streaming workflows**: Genesis and breeding stream progress with Server-Sent Events from Next.js API routes. No Inngest / Trigger.dev in V1.
-- **Contracts**: Hardhat, Solidity, deployed to 0G Galileo Testnet (chain ID 16602)
-- **Storage**: Adapter-based (`StorageProvider` interface in shared). Memory adapter for dev/test, 0G Storage adapter for production.
+- **Contracts**: Hardhat, Solidity, deployed to 0G Galileo Testnet (chain ID 16602). Current deployed `ThoughtLineAgent`: `0xCE417B89Cf7839502C3dcE93FeE4828D442bbff2`; current `TEEVerifier`: `0x79860Be4236dAbA300750191Bb00Dee899d9f12C`.
+- **Storage**: Adapter-based (`StorageProvider` interface in shared). Memory adapter for dev/test, 0G Storage adapter for production. Current local demo uses `STORAGE_ADAPTER=0g` and live Galileo Storage.
 - **Deployment**: Vercel (web app), 0G Galileo contracts/storage
 
 ### Data Split
@@ -62,9 +62,9 @@ npx hardhat deploy --network 0g-testnet  # Deploy to 0G Galileo
 
 - Agent genome is split: public profile is plaintext and comparable; private worldview is encrypted and owner-unlocked.
 - Use project-native `SkillPackage[]` for public capabilities. Skill packages are `SKILL.md`-style markdown instructions with provenance (`genesis`, `inherited`, `adapted`, `synthesized`) and parent skill ids.
-- LLM provider abstraction: never import a specific provider directly in business logic; use `createProvider()` from `apps/web/src/lib/llm/provider.ts`
+- LLM provider abstraction: never import a specific provider directly in business logic; use `createProvider()` from `apps/web/src/lib/llm/provider.ts`. The 0G Router adapter owns Router API calls. The 0G Direct adapter owns `@0glabs/0g-serving-broker` calls and must settle successful responses with `processResponse()`.
 - Structured LLM extraction: use `extractStructured(llm, messages, zodSchema)` from `apps/web/src/lib/llm/extract-structured.ts` for any LLM→JSON→validate pipeline. It handles retry-on-bad-JSON automatically.
-- Storage provider abstraction: never call 0G SDK directly in business logic; use `createStorage()` from `apps/web/src/lib/storage/index.ts`. Use `"memory"` adapter for dev/test, `"0g"` for production
+- Storage provider abstraction: never call 0G SDK directly in business logic; use `createStorage()` from `apps/web/src/lib/storage/index.ts`. Use `"memory"` adapter for dev/test, `"0g"` for production. The 0G Storage adapter contains a compatibility wrapper for the current Galileo Flow ABI because `@0glabs/0g-ts-sdk@0.3.3` still submits with the older Flow selector.
 - Agent creation: use `createAgentFromText()` for genesis from text sources and `createAgentFromBreeding()` for breeding. Split the result into public profile and private worldview before storage.
 - `AgentArchive` owns serialization + storage composition and should absorb encryption details through a crypto boundary.
 - `AgentArchive` computes verifier-facing `dataHash` from private ciphertext bytes; do not rely on storage adapter hash semantics for on-chain proof.
@@ -73,4 +73,4 @@ npx hardhat deploy --network 0g-testnet  # Deploy to 0G Galileo
 - Do not put Postgres on any demo-critical path for V1.
 - Contract work should target minimal ERC-7857 compatibility, lineage, data hashes, and a stub `TEEVerifier`. Be explicit in docs that the V1 verifier is not a real TEE.
 - Gas is paid by the user (standard web3 UX)
-- Tests use vitest + msw (fake HTTP). Run single test file: `pnpm --filter web vitest run src/lib/path/to/test.ts`
+- Tests use vitest + msw (fake HTTP). Run single test file: `pnpm --filter web exec vitest run src/lib/path/to/test.ts`

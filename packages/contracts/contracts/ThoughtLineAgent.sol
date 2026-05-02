@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 enum OracleType {
@@ -81,8 +82,13 @@ interface IERC7857 {
     ) external returns (uint256 newTokenId);
     function authorizeUsage(uint256 tokenId, address user) external;
     function revokeAuthorization(uint256 tokenId, address user) external;
-    function authorizedUsersOf(uint256 tokenId) external view returns (address[] memory);
+    function approve(address to, uint256 tokenId) external;
+    function setApprovalForAll(address operator, bool approved) external;
     function delegateAccess(address assistant) external;
+    function ownerOf(uint256 tokenId) external view returns (address);
+    function authorizedUsersOf(uint256 tokenId) external view returns (address[] memory);
+    function getApproved(uint256 tokenId) external view returns (address);
+    function isApprovedForAll(address owner, address operator) external view returns (bool);
     function getDelegateAccess(address user) external view returns (address);
 }
 
@@ -255,7 +261,7 @@ contract ThoughtLineAgent is ERC721, ERC721URIStorage, Ownable, IERC7857, IERC78
         address from = ownerOf(tokenId);
         require(_isAuthorizedOrOwner(msg.sender, tokenId), "Not authorized");
         TransferValidityProofOutput[] memory outputs = verifier.verifyTransferValidity(proofs);
-        require(outputs.length > 0, "Proof required");
+        _requireCurrentDataProofs(tokenId, outputs);
 
         _intelligentData[tokenId][0].dataHash = outputs[0].newDataHash;
         _safeTransfer(from, to, tokenId);
@@ -271,7 +277,7 @@ contract ThoughtLineAgent is ERC721, ERC721URIStorage, Ownable, IERC7857, IERC78
         address from = ownerOf(tokenId);
         require(_isAuthorizedOrOwner(msg.sender, tokenId), "Not authorized");
         TransferValidityProofOutput[] memory outputs = verifier.verifyTransferValidity(proofs);
-        require(outputs.length > 0, "Proof required");
+        _requireCurrentDataProofs(tokenId, outputs);
 
         newTokenId = _mintAgent(
             to,
@@ -282,6 +288,20 @@ contract ThoughtLineAgent is ERC721, ERC721URIStorage, Ownable, IERC7857, IERC78
 
         emit Cloned(tokenId, newTokenId, from, to);
         _publishSealedKeys(to, newTokenId, outputs);
+    }
+
+    function _requireCurrentDataProofs(
+        uint256 tokenId,
+        TransferValidityProofOutput[] memory outputs
+    ) private view {
+        IntelligentData[] storage data = _intelligentData[tokenId];
+        require(outputs.length > 0, "Proof required");
+        require(outputs.length == data.length, "Proof count mismatch");
+
+        for (uint256 i = 0; i < data.length; i++) {
+            require(outputs[i].oldDataHash == data[i].dataHash, "Stale data hash");
+            require(outputs[i].newDataHash != bytes32(0), "New data hash required");
+        }
     }
 
     function authorizeUsage(uint256 tokenId, address user) external {
@@ -462,6 +482,39 @@ contract ThoughtLineAgent is ERC721, ERC721URIStorage, Ownable, IERC7857, IERC78
             sealedKeys[i] = outputs[i].sealedKey;
         }
         emit PublishedSealedKey(to, tokenId, sealedKeys);
+    }
+
+    function approve(
+        address to,
+        uint256 tokenId
+    ) public override(ERC721, IERC721, IERC7857) {
+        super.approve(to, tokenId);
+    }
+
+    function setApprovalForAll(
+        address operator,
+        bool approved
+    ) public override(ERC721, IERC721, IERC7857) {
+        super.setApprovalForAll(operator, approved);
+    }
+
+    function ownerOf(
+        uint256 tokenId
+    ) public view override(ERC721, IERC721, IERC7857) returns (address) {
+        return super.ownerOf(tokenId);
+    }
+
+    function getApproved(
+        uint256 tokenId
+    ) public view override(ERC721, IERC721, IERC7857) returns (address) {
+        return super.getApproved(tokenId);
+    }
+
+    function isApprovedForAll(
+        address owner,
+        address operator
+    ) public view override(ERC721, IERC721, IERC7857) returns (bool) {
+        return super.isApprovedForAll(owner, operator);
     }
 
     function tokenURI(

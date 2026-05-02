@@ -20,6 +20,8 @@ export interface SynthesizeGenesisSkillsInput {
   agentName: string;
   sourcesText: string;
   privateWorldview: PrivateWorldview;
+  expertiseType?: string;
+  sourceLabels?: string[];
 }
 
 export interface SkillParentInput {
@@ -30,6 +32,7 @@ export interface SkillParentInput {
 
 export interface SynthesizeChildSkillsInput {
   childName: string;
+  childBrief?: string;
   childWorldview: PrivateWorldview;
   parentA: SkillParentInput;
   parentB: SkillParentInput;
@@ -44,9 +47,15 @@ export async function synthesizeGenesisSkills(
     [
       {
         role: "user",
-        content: `Create 3-5 public skill packages for a new ThoughtLine advisor agent.
+        content: `Create 3-5 public skill packages for a new ThoughtLine expertise agent. The skills must read as concrete buyer-facing capabilities, not generic advice categories.
 
 Agent name: ${input.agentName}
+Expertise type / positioning: ${input.expertiseType ?? "Not specified"}
+Source labels: ${
+          input.sourceLabels && input.sourceLabels.length > 0
+            ? input.sourceLabels.join(", ")
+            : "Not specified"
+        }
 
 Private worldview summary for grounding only. Do not copy private wording into public skill markdown:
 ${JSON.stringify(input.privateWorldview, null, 2)}
@@ -56,11 +65,12 @@ ${input.sourcesText}
 
 Each skill package must have:
 - id: kebab-case stable id
-- name: human-readable capability name
-- description: short public description
-- skillMarkdown: SKILL.md-style markdown with frontmatter, "When to Use", "Inputs", "Procedure", and "Output" sections
+- name: human-readable capability name framed around an outcome a buyer would recognize
+- description: short public description with clear input and output expectations
+- skillMarkdown: SKILL.md-style markdown with frontmatter, "When to Use", "Inputs", "Procedure", and "Output" sections. The Inputs and Output sections must be specific enough for a buyer to understand what to provide and what they receive.
 - source: "genesis"
 - parentSkillIds: []
+- Avoid generic "advisor", "coach", or "strategy" skills unless the source text supports a narrower capability.
 
 Respond ONLY with JSON: {"skills": SkillPackage[]}.`,
       },
@@ -87,9 +97,10 @@ export async function synthesizeChildSkills(
     [
       {
         role: "user",
-        content: `Create 3-6 public skill packages for a bred ThoughtLine child agent.
+        content: `Create 3-6 public skill packages for a bred ThoughtLine child expertise agent. The skills must be concrete buyer-facing capabilities for the child's intended purpose.
 
 Child name: ${input.childName}
+Child brief / intended marketable purpose: ${input.childBrief ?? "Not specified"}
 Child private worldview for grounding only. Do not copy private wording into public skill markdown:
 ${JSON.stringify(input.childWorldview, null, 2)}
 
@@ -101,11 +112,11 @@ ${JSON.stringify(input.parentB.publicProfile, null, 2)}
 
 Rules:
 - Do NOT automatically union parent skills.
-- Choose skills that fit the child worldview.
+- Choose skills that fit the child worldview and the child brief.
 - Each child skill source must be one of "inherited", "adapted", or "synthesized".
 - Use parentSkillIds to cite parent skills that influenced each child skill.
 - At least one skill should be "adapted" or "synthesized" when parent skills differ meaningfully.
-- skillMarkdown must be SKILL.md-style markdown with frontmatter, "When to Use", "Inputs", "Procedure", and "Output" sections.
+- skillMarkdown must be SKILL.md-style markdown with frontmatter, "When to Use", "Inputs", "Procedure", and "Output" sections. Inputs and outputs must be specific, inspectable, and useful to a potential buyer.
 - Public skill markdown must not reveal private worldview text.
 
 Respond ONLY with JSON: {"skills": SkillPackage[]}.`,
