@@ -10,6 +10,7 @@ dist/
 # Local agent tooling / cloned reference repos
 .0g-skills/
 .codex
+demo/input/
 
 # Hardhat
 artifacts/

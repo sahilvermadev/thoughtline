@@ -79,6 +79,8 @@ Create a child worldview that:
 4. Identifies new blindspots that emerge from the synthesis
 5. Develops a decision style that balances both parents
 6. Writes a freeform private operating model that integrates both perspectives
+7. Produces an optional operatingModel that captures identity, worldview, tensions, decision-making, persona, boundaries, and examples
+8. Produces an optional styleModel when parent voice/style signals are strong enough to synthesize responsibly
 
 Respond with a JSON object matching this schema:
 - values: string[] (1-10 items)
@@ -86,6 +88,26 @@ Respond with a JSON object matching this schema:
 - blindspots: string[] (0-10 items)
 - decisionStyle: "analytical" | "intuitive" | "deliberative" | "adaptive" | "contrarian"
 - freeform: string (max 5000 chars)
+- operatingModel: optional object with:
+  - identity: { role, background, expertiseBoundary, influences? }
+  - worldview: { coreBeliefs, defaultAssumptions, tensions? }
+  - decisionMaking: {
+      tradeoffRules: [{ when, prefer, over, rationale, evidenceLabels? }],
+      rubrics: [{ domain, criteria, redFlags, greenFlags, evidenceLabels? }],
+      confidenceModel: { highConfidenceWhen, lowConfidenceWhen, askClarifyingQuestionsWhen }
+    }
+  - persona: { tone, temperament, communicationStyle }
+  - boundaries: { refuses, escalates, asksClarifyingQuestionsWhen }
+  - examples: { decisionExamples: [{ situation, judgment, reasoning, evidenceLabels? }], phrasingExamples }
+- styleModel: optional object with voicePrinciples, vocabulary, rhetoricalMoves, toneShifts, antiPatterns, examples, and platformNotes
+
+Operating model rules:
+- Preserve decision machinery from parents when it fits the child brief.
+- Preserve real tensions and contradictions instead of smoothing them into bland consistency.
+- Use the child brief as positioning, not permission to invent unsupported expertise.
+- When parent capabilities conflict, make tradeoffRules explicit.
+- Keep boundaries and low-confidence conditions narrow and credible.
+- Do not impersonate either parent identity; the child is derived from parent agents.
 
 Respond ONLY with valid JSON, no other text.`,
             },

@@ -22,6 +22,7 @@ export interface SynthesizeGenesisSkillsInput {
   privateWorldview: PrivateWorldview;
   expertiseType?: string;
   sourceLabels?: string[];
+  desiredCapabilities?: string[];
 }
 
 export interface SkillParentInput {
@@ -56,11 +57,19 @@ Source labels: ${
             ? input.sourceLabels.join(", ")
             : "Not specified"
         }
+Desired capabilities from creator: ${
+          input.desiredCapabilities && input.desiredCapabilities.length > 0
+            ? input.desiredCapabilities.join("; ")
+            : "Not specified"
+        }
 
-Private worldview summary for grounding only. Do not copy private wording into public skill markdown:
+Private worldview and style model for grounding only. Do not copy private wording into public skill markdown:
 ${JSON.stringify(input.privateWorldview, null, 2)}
 
-Source text:
+Operating model summary for capability coherence:
+${summarizeOperatingModelForPrompt(input.privateWorldview)}
+
+Source evidence. For large inputs this contains chunk-level extracts rather than raw oversized text:
 ${input.sourcesText}
 
 Each skill package must have:
@@ -70,12 +79,16 @@ Each skill package must have:
 - skillMarkdown: SKILL.md-style markdown with frontmatter, "When to Use", "Inputs", "Procedure", and "Output" sections. The Inputs and Output sections must be specific enough for a buyer to understand what to provide and what they receive.
 - source: "genesis"
 - parentSkillIds: []
+- creationBasis: "user-guided" when the skill directly follows a desired capability, "llm-discovered" when inferred from source material, or "merged" when combining creator intent with an LLM-discovered capability.
 - Avoid generic "advisor", "coach", or "strategy" skills unless the source text supports a narrower capability.
+- Desired capabilities are soft guidance. Preserve creator intent where source material supports it, but merge, rename, or drop weak capabilities when needed.
+- Let source-grounded style and judgment patterns influence procedure wording, but describe the agent as derived from sources or source patterns. Do not claim the agent literally is a source author or real person.
 
 Respond ONLY with JSON: {"skills": SkillPackage[]}.`,
       },
     ],
-    genesisSkillsSchema
+    genesisSkillsSchema,
+    { maxRetries: 4 }
   );
 
   return assertNoPrivateWorldviewLeakage(
@@ -122,7 +135,8 @@ Rules:
 Respond ONLY with JSON: {"skills": SkillPackage[]}.`,
       },
     ],
-    childSkillsSchema
+    childSkillsSchema,
+    { maxRetries: 4 }
   );
 
   return assertNoPrivateWorldviewLeakage(result.skills, [
@@ -160,18 +174,48 @@ export function assertNoPrivateWorldviewLeakage(
 
 function extractPrivateSnippets(worldview: PrivateWorldview): string[] {
   const values = [
-    ...worldview.values,
-    ...worldview.heuristics,
-    ...worldview.blindspots,
     worldview.freeform,
+    ...worldview.blindspots,
+    ...extractLongPrivateLeafStrings(worldview.operatingModel),
+    ...extractLongPrivateLeafStrings(worldview.styleModel),
   ];
 
   return values
     .map(normalize)
-    .filter((value) => value.length >= 24)
-    .map((value) => value.slice(0, 80));
+    .filter((value) => value.length >= 80);
 }
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function extractLongPrivateLeafStrings(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap(extractLongPrivateLeafStrings);
+  if (value && typeof value === "object") {
+    return Object.values(value).flatMap(extractLongPrivateLeafStrings);
+  }
+  return [];
+}
+
+function summarizeOperatingModelForPrompt(worldview: PrivateWorldview): string {
+  const model = worldview.operatingModel;
+  if (!model) {
+    return "Not provided. Use the values, heuristics, decision style, and source text.";
+  }
+
+  return JSON.stringify(
+    {
+      identity: model.identity,
+      coreBeliefs: model.worldview.coreBeliefs,
+      tradeoffRules: model.decisionMaking.tradeoffRules,
+      rubrics: model.decisionMaking.rubrics,
+      confidenceModel: model.decisionMaking.confidenceModel,
+      persona: model.persona,
+      boundaries: model.boundaries,
+      decisionExamples: model.examples.decisionExamples,
+    },
+    null,
+    2
+  );
 }

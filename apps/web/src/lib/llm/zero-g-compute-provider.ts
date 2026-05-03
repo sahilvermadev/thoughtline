@@ -10,6 +10,9 @@ import {
   requireConfig,
 } from "./response-utils";
 
+const MAX_REQUEST_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 750;
+
 export function createZeroGComputeProvider(config: ProviderConfig): LLMProvider {
   const providerAddress = requireConfig(
     "providerAddress",
@@ -47,23 +50,37 @@ export function createZeroGComputeProvider(config: ProviderConfig): LLMProvider 
   async function request(body: Record<string, unknown>): Promise<Response> {
     const broker = await getBroker();
     const metadata = await getMetadata();
-    const headers = await broker.inference.getRequestHeaders(providerAddress);
     const model = config.model || metadata.model;
-    const res = await fetch(`${metadata.endpoint}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...headers,
-      },
-      body: JSON.stringify({ model, ...body }),
-    });
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`0G Compute API error ${res.status}: ${text}`);
+    for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt++) {
+      try {
+        const headers = await broker.inference.getRequestHeaders(providerAddress);
+        const res = await fetch(`${metadata.endpoint}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...headers,
+          },
+          body: JSON.stringify({ model, ...body }),
+        });
+
+        if (res.ok) return res;
+
+        const text = await res.text();
+        const error = new Error(`0G Compute API error ${res.status}: ${text}`);
+        if (!isRetryableStatus(res.status) || attempt === MAX_REQUEST_ATTEMPTS) {
+          throw error;
+        }
+        await delay(backoffMs(attempt));
+      } catch (error) {
+        if (!isRetryableError(error) || attempt === MAX_REQUEST_ATTEMPTS) {
+          throw error;
+        }
+        await delay(backoffMs(attempt));
+      }
     }
 
-    return res;
+    throw new Error("0G Compute request failed after retries");
   }
 
   async function settle(res: Response, data: unknown): Promise<void> {
@@ -166,6 +183,29 @@ export function createZeroGComputeProvider(config: ProviderConfig): LLMProvider 
       JSON.stringify(usage ?? {})
     );
   }
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+function isRetryableError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    /fetch failed/i.test(error.message) ||
+    /network/i.test(error.message) ||
+    /timeout/i.test(error.message) ||
+    /ECONNRESET|ETIMEDOUT|EAI_AGAIN|UND_ERR/i.test(error.message) ||
+    /0G Compute API error (429|5\d\d)/i.test(error.message)
+  );
+}
+
+function backoffMs(attempt: number): number {
+  return RETRY_BASE_DELAY_MS * attempt;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function extractChatID(res: Response, data: unknown): string | undefined {

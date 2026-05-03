@@ -75,6 +75,32 @@ describe("extractStructured", () => {
     expect(lastMsg.content).toMatch(/invalid|error|json/i);
   });
 
+  it("repairs malformed JSON before retrying the original prompt", async () => {
+    const calls: LLMMessage[][] = [];
+    const llm: LLMProvider = {
+      async chat(messages) {
+        calls.push(messages);
+        if (calls.length === 1) {
+          return { content: '{"name":"Bob","score":50 "extra":"bad"}' };
+        }
+        return { content: JSON.stringify({ name: "Bob", score: 50 }) };
+      },
+      async *chatStream() {
+        throw new Error("Not used");
+      },
+    };
+
+    const result = await extractStructured(
+      llm,
+      [{ role: "user", content: "Rate Bob" }],
+      testSchema
+    );
+
+    expect(result).toEqual({ name: "Bob", score: 50 });
+    expect(calls.length).toBe(2);
+    expect(calls[1][0].content).toMatch(/repair malformed json/i);
+  });
+
   it("retries on Zod validation failure", async () => {
     const llm: LLMProvider = {
       async chat(messages) {

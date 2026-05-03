@@ -121,20 +121,26 @@ export function BreedWorkspace() {
   }
 
   return (
-    <section className="create-shell breed-shell">
-      <div className={stage === "compose" ? "create-head" : "create-head solo"}>
-        <div>
-          <Badge>Lineage</Badge>
-          <h1>Breed a child agent</h1>
-          <p>
-            Select two authorized parents, synthesize a child, then mint the
-            lineage transaction.
-          </p>
+    <section
+      className={
+        stage === "breeding" ? "create-shell breed-shell forging" : "create-shell breed-shell"
+      }
+    >
+      {stage !== "breeding" ? (
+        <div className={stage === "compose" ? "create-head" : "create-head solo"}>
+          <div>
+            <Badge>Lineage</Badge>
+            <h1>Breed a child agent</h1>
+            <p>
+              Select two authorized parents, synthesize a child, then mint the
+              lineage transaction.
+            </p>
+          </div>
+          {stage === "compose" ? (
+            <PipelineCard events={breeding.events} state={formatBreedingState(breeding)} />
+          ) : null}
         </div>
-        {stage === "compose" ? (
-          <PipelineCard events={breeding.events} state={formatBreedingState(breeding)} />
-        ) : null}
-      </div>
+      ) : null}
 
       {stage === "compose" ? (
         <BreedComposeSurface
@@ -262,8 +268,11 @@ function BreedComposeSurface({
             <label htmlFor="child-name">Child name</label>
             <Input
               id="child-name"
+              autoComplete="off"
+              name="thoughtline-child-name"
               value={childName}
               onChange={(event) => setChildName(event.target.value)}
+              placeholder="Child name"
             />
           </div>
           <div className="create-form-row wide">
@@ -381,37 +390,52 @@ function BreedProgressSurface({
   state: string;
 }) {
   return (
-    <div className="create-progress-grid">
+    <div className="create-progress-grid create-progress-stage">
       <Card className="create-progress-card">
-        <CardHeader>
-          <Badge>{isBusy ? "Running" : error ? "Needs attention" : "Waiting"}</Badge>
-          <CardTitle>
-            {error && !isBusy ? "Breeding stopped" : "Synthesizing child"}
-          </CardTitle>
-          <CardDescription>{state}</CardDescription>
-        </CardHeader>
-        <CardContent className="create-progress-content">
-          {isBusy ? (
-            <div className="create-progress-visual">
-              <Skeleton />
-              <Skeleton />
-              <Skeleton />
+        <CardContent className="create-progress-layout">
+          <div className="create-progress-main">
+            <div>
+              <Badge>
+                {isBusy ? "Running" : error ? "Needs attention" : "Waiting"}
+              </Badge>
+              <h2>{error && !isBusy ? "Breeding stopped" : "Synthesizing child"}</h2>
+              <p>{state}</p>
             </div>
-          ) : null}
-          {error ? (
-            <Alert className="ui-alert-error">
-              <AlertTitle>Breeding failed</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
-          {!isBusy && error ? (
-            <Button onClick={onEditInputs} type="button" variant="outline">
-              Edit inputs
-            </Button>
-          ) : null}
+            {isBusy ? (
+              <div className="create-progress-visual">
+                <Skeleton />
+                <Skeleton />
+                <Skeleton />
+              </div>
+            ) : null}
+            {error ? (
+              <Alert className="ui-alert-error">
+                <AlertTitle>Breeding failed</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+            {!isBusy && error ? (
+              <Button onClick={onEditInputs} type="button" variant="outline">
+                Edit inputs
+              </Button>
+            ) : null}
+          </div>
+          <div className="create-progress-pipeline">
+            <div>
+              <h3>Breeding pipeline</h3>
+              <p>{state}</p>
+            </div>
+            <ScrollArea className="create-progress-pipeline-scroll">
+              <ol className="create-status-list">
+                {events.length === 0 ? <li>Idle</li> : null}
+                {events.map((event, index) => (
+                  <li key={`${event}-${index}`}>{formatBreedingEvent(event)}</li>
+                ))}
+              </ol>
+            </ScrollArea>
+          </div>
         </CardContent>
       </Card>
-      <PipelineCard events={events} state={state} />
     </div>
   );
 }

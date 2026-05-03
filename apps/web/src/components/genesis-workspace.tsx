@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PrivateWorldview, SkillPackage } from "@thoughtline/shared";
 import type { PrivateWorldviewSummary } from "@/lib/agent-artifact";
 import type { TextSource } from "@/lib/agents/create-from-text";
@@ -46,11 +46,14 @@ type ReviewTab = "summary" | "skills" | "private" | "technical";
 export function GenesisWorkspace() {
   const { genesis } = useWorkbench();
   const [stage, setStage] = useState<CreateStage>(
-    genesis.ready ? "review" : "compose"
+    genesis.ready && !genesis.isMintConfirmed ? "review" : "compose"
   );
   const [sourceTab, setSourceTab] = useState<SourceTab>("files");
   const [reviewTab, setReviewTab] = useState<ReviewTab>("summary");
-  const [name, setName] = useState("My ThoughtLine Agent");
+  const [mintSuccessTokenId, setMintSuccessTokenId] = useState<string | null>(
+    null
+  );
+  const [name, setName] = useState("");
   const [expertiseType, setExpertiseType] = useState("");
   const [sourceLabels, setSourceLabels] = useState("");
   const [desiredCapabilities, setDesiredCapabilities] = useState("");
@@ -60,10 +63,20 @@ export function GenesisWorkspace() {
   const [sourceText, setSourceText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
+  const handledMintConfirmation = useRef(false);
 
   useEffect(() => {
-    if (genesis.ready) setStage("review");
-  }, [genesis.ready]);
+    if (genesis.ready && !genesis.isMintConfirmed) setStage("review");
+  }, [genesis.ready, genesis.isMintConfirmed]);
+
+  useEffect(() => {
+    if (!genesis.isMintConfirmed || handledMintConfirmation.current) return;
+    handledMintConfirmation.current = true;
+    setMintSuccessTokenId(genesis.mintedTokenId);
+    setStage("compose");
+    setReviewTab("summary");
+    genesis.clearGenesisReview();
+  }, [genesis.clearGenesisReview, genesis.isMintConfirmed, genesis.mintedTokenId]);
 
   const hasSource =
     sourceText.trim().length > 0 ||
@@ -102,27 +115,37 @@ export function GenesisWorkspace() {
     setFiles((current) => current.filter((_, i) => i !== index));
   }
 
-  async function buildSources(): Promise<TextSource[] | null> {
+  async function buildSources(): Promise<{
+    sources: TextSource[] | null;
+    error: string | null;
+  }> {
     const sources: TextSource[] = [];
     for (const file of files) {
       try {
         sources.push(await extractTextSource(file));
       } catch (error) {
-        setFileError(
-          error instanceof Error ? error.message : "Failed to read file"
-        );
-        return null;
+        return {
+          sources: null,
+          error:
+            error instanceof Error ? error.message : "Failed to read file",
+        };
       }
     }
     if (sourceText.trim().length > 0) {
       sources.push({ label: "Pasted text", text: sourceText });
     }
-    return sources;
+    return { sources, error: null };
   }
 
   async function onForge() {
     setFileError(null);
-    const sources = await buildSources();
+    setMintSuccessTokenId(null);
+    handledMintConfirmation.current = false;
+    const { sources, error } = await buildSources();
+    if (error) {
+      setFileError(error);
+      return;
+    }
     const urls = parseSourceUrls(sourceUrls);
     if (!sources || (sources.length === 0 && !urls?.length)) {
       setFileError("Attach a file, paste source text, or add a source URL.");
@@ -143,26 +166,30 @@ export function GenesisWorkspace() {
     genesis.clearGenesisReview();
     setReviewTab("summary");
     setStage("compose");
+    setMintSuccessTokenId(null);
+    handledMintConfirmation.current = false;
   }
 
   return (
-    <section className="create-shell">
-      <div className={stage === "compose" ? "create-head" : "create-head solo"}>
-        <div>
-          <Badge>Genesis</Badge>
-          <h1>Create a new agent</h1>
-          <p>
-            Package links, notes, examples, and work samples into a public
-            capability profile with an encrypted private worldview.
-          </p>
+    <section className={stage === "forging" ? "create-shell forging" : "create-shell"}>
+      {stage !== "forging" ? (
+        <div className={stage === "compose" ? "create-head" : "create-head solo"}>
+          <div>
+            <Badge>Genesis</Badge>
+            <h1>Create a new agent</h1>
+            <p>
+              Package links, notes, examples, and work samples into a public
+              capability profile with an encrypted private worldview.
+            </p>
+          </div>
+          {stage === "compose" ? (
+            <PipelineCard
+              events={genesis.events}
+              state={formatPipelineState(genesis)}
+            />
+          ) : null}
         </div>
-        {stage === "compose" ? (
-          <PipelineCard
-            events={genesis.events}
-            state={formatPipelineState(genesis)}
-          />
-        ) : null}
-      </div>
+      ) : null}
 
       {stage === "compose" ? (
         <ComposeSurface
@@ -174,6 +201,7 @@ export function GenesisWorkspace() {
           files={files}
           forgeDisabledReason={forgeDisabledReason}
           genesisError={genesis.error}
+          mintedTokenId={mintSuccessTokenId}
           name={name}
           onAddFiles={addFiles}
           onForge={onForge}
@@ -192,6 +220,7 @@ export function GenesisWorkspace() {
           sourceUrls={sourceUrls}
           setSourceTab={setSourceTab}
           usageFeeOg={usageFeeOg}
+          showMintSuccess={Boolean(mintSuccessTokenId)}
         />
       ) : null}
 
@@ -245,7 +274,9 @@ function ComposeSurface(props: {
   files: File[];
   forgeDisabledReason: string | null;
   genesisError: string | null;
+  mintedTokenId: string | null;
   name: string;
+  showMintSuccess: boolean;
   onAddFiles: (incoming: FileList | null) => void;
   onForge: () => void;
   onRemoveFile: (index: number) => void;
@@ -266,6 +297,17 @@ function ComposeSurface(props: {
 }) {
   return (
     <div className="create-compose-grid">
+      {props.showMintSuccess && props.mintedTokenId ? (
+        <Alert className="ui-alert-success create-inline-alert create-compose-banner">
+          <AlertTitle>Mint confirmed</AlertTitle>
+          <AlertDescription>
+            The last agent is on-chain.
+            <Link className="inline-link" href={`/agents/${props.mintedTokenId}`}>
+              Open minted agent #{props.mintedTokenId}
+            </Link>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <Card className="create-compose-card">
         <CardHeader>
           <CardTitle>Agent setup</CardTitle>
@@ -278,8 +320,11 @@ function ComposeSurface(props: {
             <label htmlFor="agent-name">Agent name</label>
             <Input
               id="agent-name"
+              autoComplete="off"
+              name="thoughtline-agent-name"
               value={props.name}
               onChange={(event) => props.setName(event.target.value)}
+              placeholder="Agent name"
             />
           </div>
 
@@ -378,7 +423,7 @@ function ComposeSurface(props: {
                     Attach files
                     <span className="muted">
                       {" "}
-                      - {SUPPORTED_EXTENSIONS.slice(0, 6).join(" ")}
+                      - PDF, text, markdown, code, and data files
                     </span>
                   </label>
                   <Input
@@ -493,37 +538,52 @@ function ProgressSurface({
   state: string;
 }) {
   return (
-    <div className="create-progress-grid">
+    <div className="create-progress-grid create-progress-stage">
       <Card className="create-progress-card">
-        <CardHeader>
-          <Badge>{isBusy ? "Running" : error ? "Needs attention" : "Waiting"}</Badge>
-          <CardTitle>
-            {error && !isBusy ? "Forge stopped" : "Forging agent"}
-          </CardTitle>
-          <CardDescription>{state}</CardDescription>
-        </CardHeader>
-        <CardContent className="create-progress-content">
-          {isBusy ? (
-            <div className="create-progress-visual">
-              <Skeleton />
-              <Skeleton />
-              <Skeleton />
+        <CardContent className="create-progress-layout">
+          <div className="create-progress-main">
+            <div>
+              <Badge>
+                {isBusy ? "Running" : error ? "Needs attention" : "Waiting"}
+              </Badge>
+              <h2>{error && !isBusy ? "Forge stopped" : "Forging agent"}</h2>
+              <p>{state}</p>
             </div>
-          ) : null}
-          {error ? (
-            <Alert className="ui-alert-error">
-              <AlertTitle>Forge failed</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
-          {!isBusy && error ? (
-            <Button onClick={onEditInputs} type="button" variant="outline">
-              Edit inputs
-            </Button>
-          ) : null}
+            {isBusy ? (
+              <div className="create-progress-visual">
+                <Skeleton />
+                <Skeleton />
+                <Skeleton />
+              </div>
+            ) : null}
+            {error ? (
+              <Alert className="ui-alert-error">
+                <AlertTitle>Forge failed</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+            {!isBusy && error ? (
+              <Button onClick={onEditInputs} type="button" variant="outline">
+                Edit inputs
+              </Button>
+            ) : null}
+          </div>
+          <div className="create-progress-pipeline">
+            <div>
+              <h3>Pipeline</h3>
+              <p>{state}</p>
+            </div>
+            <ScrollArea className="create-progress-pipeline-scroll">
+              <ol className="create-status-list">
+                {events.length === 0 ? <li>Idle</li> : null}
+                {events.map((event, index) => (
+                  <li key={`${event}-${index}`}>{formatPipelineEvent(event)}</li>
+                ))}
+              </ol>
+            </ScrollArea>
+          </div>
         </CardContent>
       </Card>
-      <PipelineCard events={events} state={state} />
     </div>
   );
 }
@@ -604,7 +664,7 @@ function ReviewSurface({
             </>
           )}
           <Button onClick={onClear} type="button" variant="outline">
-            Clear review
+            {isMintConfirmed ? "Create another" : "Clear review"}
           </Button>
         </div>
       </CardHeader>

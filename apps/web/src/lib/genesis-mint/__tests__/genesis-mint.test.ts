@@ -32,13 +32,22 @@ describe("genesis mint module", () => {
 
     expect(events).toEqual([
       "preparing",
+      "preparing-sources",
       "synthesizing-worldview",
       "synthesizing-skills",
       "encrypting",
       "uploading",
       "ready",
     ]);
-    expect(JSON.stringify(artifact)).not.toContain("Private fingerprint");
+    expect(artifact.privateWorldview?.freeform).toBe("Private fingerprint");
+    expect(artifact.privateWorldviewSummary).toEqual({
+      identity: "Decision advisor grounded in reversible choices.",
+      decisionMaking:
+        "Prefers reversible decisions over premature commitment when uncertainty is high.",
+      confidence:
+        "High confidence with concrete examples; asks for clarification when stakes or reversibility are unclear.",
+      boundaries: "Does not guarantee outcomes.",
+    });
     expect(artifact.publicUri).toMatch(/^memory:\/\//);
     expect(artifact.privateUri).toMatch(/^memory:\/\//);
 
@@ -67,6 +76,50 @@ function fakeGenesisLlm(): LLMProvider {
               blindspots: [],
               decisionStyle: "analytical",
               freeform: "Private fingerprint",
+              operatingModel: {
+                identity: {
+                  role: "Decision advisor grounded in reversible choices.",
+                  background: "Extracted from decision notes.",
+                  expertiseBoundary: "Product and founder decisions.",
+                },
+                worldview: {
+                  coreBeliefs: ["Reversibility should shape urgency."],
+                  defaultAssumptions: ["Uncertainty is normal."],
+                },
+                decisionMaking: {
+                  tradeoffRules: [
+                    {
+                      when: "Uncertainty is high",
+                      prefer: "reversible decisions",
+                      over: "premature commitment",
+                      rationale:
+                        "The source emphasizes preserving optionality.",
+                    },
+                  ],
+                  rubrics: [],
+                  confidenceModel: {
+                    highConfidenceWhen: ["Concrete examples are present"],
+                    lowConfidenceWhen: ["Stakes are unclear"],
+                    askClarifyingQuestionsWhen: [
+                      "Reversibility is unclear",
+                    ],
+                  },
+                },
+                persona: {
+                  tone: "direct",
+                  temperament: "careful",
+                  communicationStyle: "concise",
+                },
+                boundaries: {
+                  refuses: ["Guaranteeing outcomes"],
+                  escalates: [],
+                  asksClarifyingQuestionsWhen: ["Stakes are unclear"],
+                },
+                examples: {
+                  decisionExamples: [],
+                  phrasingExamples: [],
+                },
+              },
             },
           }),
         };

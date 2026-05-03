@@ -4,6 +4,7 @@ import type {
   StorageProvider,
 } from "@thoughtline/shared";
 import {
+  AUTHORIZED_RUNTIME_REQUIRES_V2_ENVELOPE_ERROR,
   createAgentArchive,
   type AgentArchive,
 } from "../agent-archive/index";
@@ -21,6 +22,7 @@ export interface AgentAccessSnapshotReaderDeps {
   chain: ThoughtLineChainReader;
   storage: StorageProvider;
   archive?: AgentArchive;
+  privateWorldviews?: Record<string, PrivateWorldview>;
 }
 
 export interface AgentAccessSnapshotReader {
@@ -50,7 +52,12 @@ export function createAgentAccessSnapshotReader(
 
       const [publicProfile, privateWorldview] = await Promise.all([
         archive.loadPublic(publicUri),
-        archive.loadPrivateForRuntime(privateUri),
+        loadPrivateWorldview(
+          archive,
+          tokenId,
+          privateUri,
+          deps.privateWorldviews?.[tokenId]
+        ),
       ]);
 
       return {
@@ -62,4 +69,26 @@ export function createAgentAccessSnapshotReader(
       };
     },
   };
+}
+
+async function loadPrivateWorldview(
+  archive: AgentArchive,
+  tokenId: string,
+  privateUri: string,
+  privateWorldview?: PrivateWorldview
+): Promise<PrivateWorldview> {
+  if (privateWorldview) return privateWorldview;
+  try {
+    return await archive.loadPrivateForRuntime(privateUri);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === AUTHORIZED_RUNTIME_REQUIRES_V2_ENVELOPE_ERROR
+    ) {
+      throw new Error(
+        `Parent #${tokenId} was stored before runtime breeding access was enabled. Unlock that parent in this browser before breeding, or recreate it with the current create flow.`
+      );
+    }
+    throw error;
+  }
 }

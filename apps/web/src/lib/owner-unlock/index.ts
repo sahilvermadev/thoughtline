@@ -3,7 +3,7 @@ import { createAgentArchive } from "@/lib/agent-archive";
 import type { EthereumProvider } from "@/lib/browser-wallet";
 import type { PublicAgentView } from "@/lib/gallery/public-agents";
 import { createBrowserReadableStorage } from "@/lib/storage/browser";
-import { buildUnlockMessage, deriveUnlockKey } from "@/lib/unlock";
+import { buildUnlockMessage, deriveUnlockKey, type UnlockScope } from "@/lib/unlock";
 
 export interface UnlockAgentInput {
   agent: PublicAgentView;
@@ -21,9 +21,9 @@ export async function unlockAgentWorldview(
     method: "personal_sign",
     params: [
       buildUnlockMessage({
-        scope: "agent-token",
+        scope: creationUnlockScope(input.agent),
         ownerAddress: input.connectedAddress,
-        tokenId: input.agent.tokenId,
+        agentName: input.agent.publicProfile.name,
       }),
       input.connectedAddress,
     ],
@@ -32,6 +32,13 @@ export async function unlockAgentWorldview(
   const archive = createAgentArchive(input.storage ?? createBrowserReadableStorage());
 
   return archive.loadPrivate(input.agent.privateUri, key);
+}
+
+function creationUnlockScope(agent: PublicAgentView): UnlockScope {
+  return agent.publicProfile.generation > 0 ||
+    agent.publicProfile.parentIds !== null
+    ? "breeding-child"
+    : "genesis";
 }
 
 function assertConnectedOwner(

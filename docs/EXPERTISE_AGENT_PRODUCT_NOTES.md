@@ -247,6 +247,7 @@ The easy, high-leverage upgrades before submission are:
 
 - add `expertiseType` or positioning to genesis creation (implemented as optional public profile metadata)
 - add source labels to genesis creation and public profiles (implemented as lightweight provenance signals, not legal verification)
+- add desired capabilities to genesis creation (implemented as soft guidance for generated skills)
 - add `childBrief` to breeding (implemented as child positioning metadata)
 - update prompts so generated skills are concrete paid capabilities (implemented for genesis and breeding skill synthesis)
 - improve UI copy around packaged expertise (implemented in the creation form and gallery inspect view)

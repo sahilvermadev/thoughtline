@@ -6,6 +6,7 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "test": "turbo test",
+    "demo:nav-rich": "node scripts/fetch-nav-rich-demo.mjs",
     "db:generate": "pnpm --filter web db:generate",
     "db:migrate": "pnpm --filter web db:migrate",
     "db:studio": "pnpm --filter web db:studio"

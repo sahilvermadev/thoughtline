@@ -12,6 +12,7 @@ export interface GenesisMintInput {
   unlockSignature: string;
   expertiseType?: string;
   sourceLabels?: string[];
+  desiredCapabilities?: string[];
 }
 
 export interface GenesisMintDeps {
@@ -39,6 +40,7 @@ export async function createGenesisMint(
       encryptionKey,
       expertiseType: input.expertiseType,
       sourceLabels: input.sourceLabels,
+      desiredCapabilities: input.desiredCapabilities,
     },
     {
       llm: deps.llm,
@@ -50,6 +52,7 @@ export async function createGenesisMint(
   const artifact = createGenesisMintArtifact(
     {
       publicProfile: agent.publicProfile,
+      privateWorldview: agent.privateWorldview,
       publicUri: agent.publicUri,
       publicHash: agent.publicHash,
       privateUri: agent.privateUri,

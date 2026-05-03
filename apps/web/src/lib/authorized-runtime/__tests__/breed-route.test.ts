@@ -11,6 +11,7 @@ import { THOUGHTLINE_AGENT_ABI } from "@/lib/chain/thoughtline";
 import { createMemoryStorage } from "@/lib/storage/memory";
 import { createAuthorizedBreedResponse } from "../breed-route";
 import type { BreedingAccessReader } from "../breeding";
+import { createWebCryptoProvider } from "@/lib/crypto/index";
 
 const caller = "0x1111111111111111111111111111111111111111";
 
@@ -41,6 +42,8 @@ const parentBWorldview: PrivateWorldview = {
 
 describe("authorized breeding route", () => {
   it("streams breeding progress and returns a child mint artifact", async () => {
+    const storage = createMemoryStorage();
+    const keyPair = await generateRuntimeKeyPair();
     const response = await createAuthorizedBreedResponse(
       new Request("http://localhost/api/breed-authorized", {
         method: "POST",
@@ -56,7 +59,11 @@ describe("authorized breeding route", () => {
       {
         accessReader: fakeAccessReader(),
         llm: fakeBreedingLLM(),
-        archive: createAgentArchive(createMemoryStorage()),
+        archive: createAgentArchive(storage, createWebCryptoProvider(), {
+          runtimePublicKeyJwk: keyPair.publicKeyJwk,
+          runtimePrivateKeyJwk: keyPair.privateKeyJwk,
+        }),
+        storage,
         env: {
           NEXT_PUBLIC_CONTRACT_ADDRESS:
             "0x3333333333333333333333333333333333333333",
@@ -90,6 +97,14 @@ describe("authorized breeding route", () => {
       "Turn operational notes into launch decisions."
     );
 
+    const privateBytes = await storage.fetch(ready.privateUri as string);
+    const envelope = JSON.parse(new TextDecoder().decode(privateBytes)) as {
+      version: number;
+      wrappedKeys: { runtime?: unknown };
+    };
+    expect(envelope.version).toBe(2);
+    expect(envelope.wrappedKeys.runtime).toBeTruthy();
+
     const decoded = decodeFunctionData({
       abi: THOUGHTLINE_AGENT_ABI,
       data: ready.mintCalldata as `0x${string}`,
@@ -102,6 +117,52 @@ describe("authorized breeding route", () => {
       4n,
       9n,
     ]);
+  });
+
+  it("uses runtime archive keys from process.env when route deps do not inject env", async () => {
+    const storage = createMemoryStorage();
+    const keyPair = await generateRuntimeKeyPair();
+    vi.stubEnv(
+      "AUTHORIZED_RUNTIME_PUBLIC_KEY_JWK",
+      JSON.stringify(keyPair.publicKeyJwk)
+    );
+    vi.stubEnv(
+      "AUTHORIZED_RUNTIME_PRIVATE_KEY_JWK",
+      JSON.stringify(keyPair.privateKeyJwk)
+    );
+
+    try {
+      const response = await createAuthorizedBreedResponse(
+        new Request("http://localhost/api/breed-authorized", {
+          method: "POST",
+          body: JSON.stringify({
+            parentTokenIdA: "4",
+            parentTokenIdB: "9",
+            callerAddress: caller,
+            childName: "Env Child",
+            childBrief: "Use route runtime keys.",
+            unlockSignature: "0xsigned-child",
+          }),
+        }),
+        {
+          accessReader: fakeAccessReader(),
+          llm: fakeBreedingLLM(),
+          storage,
+        }
+      );
+
+      const events = await readSse(response);
+      const ready = events.at(-1)?.data as Record<string, unknown>;
+      const privateBytes = await storage.fetch(ready.privateUri as string);
+      const envelope = JSON.parse(new TextDecoder().decode(privateBytes)) as {
+        version: number;
+        wrappedKeys: { runtime?: unknown };
+      };
+      expect(envelope.version).toBe(2);
+      expect(envelope.wrappedKeys.runtime).toBeTruthy();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("rejects an unauthorized caller before invoking the LLM", async () => {
@@ -191,6 +252,33 @@ function fakeAccessReader(): BreedingAccessReader {
         privateWorldview: parent.worldview,
       };
     },
+  };
+}
+
+async function generateRuntimeKeyPair(): Promise<{
+  publicKeyJwk: JsonWebKey;
+  privateKeyJwk: JsonWebKey;
+}> {
+  const keyPair = await globalThis.crypto.subtle.generateKey(
+    {
+      name: "RSA-OAEP",
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: "SHA-256",
+    },
+    true,
+    ["encrypt", "decrypt"]
+  );
+
+  return {
+    publicKeyJwk: await globalThis.crypto.subtle.exportKey(
+      "jwk",
+      keyPair.publicKey
+    ),
+    privateKeyJwk: await globalThis.crypto.subtle.exportKey(
+      "jwk",
+      keyPair.privateKey
+    ),
   };
 }
 

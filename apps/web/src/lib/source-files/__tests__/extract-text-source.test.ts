@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import {
   EmptyFileError,
   fetchUrlSource,
@@ -23,6 +24,22 @@ describe("extractTextSource", () => {
       label: "values.txt",
       text: "I value clarity and careful tradeoffs.",
     });
+  });
+
+  it("reads a pdf file and extracts selectable text", async () => {
+    const pdf = new File(
+      [await buildPdfBytes(["Specific judgment beats", "generic summary."])],
+      "notes.pdf",
+      {
+      type: "application/pdf",
+      }
+    );
+
+    const source = await extractTextSource(pdf);
+
+    expect(source.label).toBe("notes.pdf");
+    expect(source.text).toContain("Specific judgment beats");
+    expect(source.text).toContain("generic summary.");
   });
 
   it("rejects files with unsupported extensions", async () => {
@@ -50,6 +67,23 @@ describe("extractTextSource", () => {
     await expect(extractTextSource(file)).rejects.toBeInstanceOf(EmptyFileError);
   });
 });
+
+async function buildPdfBytes(lines: string[]): Promise<ArrayBuffer> {
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([400, 400]);
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  lines.forEach((line, index) => {
+    page.drawText(line, {
+      x: 36,
+      y: 320 - index * 32,
+      size: 24,
+      font,
+      color: rgb(0, 0, 0),
+    });
+  });
+  const bytes = await pdf.save();
+  return new Uint8Array(bytes).buffer;
+}
 
 describe("fetchUrlSource", () => {
   it("fetches a URL and extracts readable article text with metadata", async () => {

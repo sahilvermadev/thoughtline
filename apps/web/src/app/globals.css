@@ -116,11 +116,34 @@ textarea.capability-input {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 20px;
-  font-weight: 800;
+  font-size: 18px;
+  font-weight: 700;
   letter-spacing: 0;
   color: inherit;
   text-decoration: none;
+}
+
+.brand-wordmark {
+  line-height: 1;
+}
+
+.brand-mark {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid rgba(5, 5, 5, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65) inset;
+  display: inline-flex;
+  height: 40px;
+  justify-content: center;
+  overflow: hidden;
+  width: 40px;
+}
+
+.brand-mark-image {
+  height: 36px;
+  object-fit: contain;
+  width: 36px;
 }
 
 .topbar-links {
@@ -196,6 +219,13 @@ textarea.capability-input {
   margin: 0;
 }
 
+.wallet-inline-error {
+  color: var(--danger);
+  font-size: 12px;
+  margin: 6px 0 0;
+  max-width: 220px;
+}
+
 .row-open-link {
   display: inline-flex;
   align-items: center;
@@ -253,19 +283,6 @@ textarea.capability-input {
 .file-chip button:hover {
   background: rgba(5, 5, 5, 0.3);
   color: #ffffff;
-}
-
-.brand span {
-  align-items: center;
-  background: #050505;
-  border: 1px solid #050505;
-  border-radius: 999px;
-  color: #ffffff;
-  display: inline-flex;
-  font-size: 14px;
-  height: 34px;
-  justify-content: center;
-  width: 42px;
 }
 
 .page-head,
@@ -1119,6 +1136,236 @@ textarea.capability-input {
   min-width: 0;
 }
 
+.agents-hero {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  padding: 24px clamp(16px, 4vw, 48px) 10px;
+}
+
+.agents-hero-copy {
+  display: grid;
+  gap: 12px;
+  align-content: center;
+  min-width: 0;
+}
+
+.agents-hero-copy h1 {
+  font-size: clamp(42px, 6vw, 72px);
+  font-weight: 500;
+  line-height: 0.96;
+  margin: 0;
+  max-width: 900px;
+}
+
+.agents-hero-copy p {
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 760px;
+}
+
+.agents-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.agents-filter-card {
+  align-self: start;
+}
+
+.agents-filter-content {
+  display: grid;
+  gap: 12px;
+}
+
+.agents-stats {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.agents-stat {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.agents-stat span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.agents-stat strong {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.agents-gallery {
+  display: grid;
+  gap: 18px;
+  padding: 10px clamp(16px, 4vw, 48px) 30px;
+}
+
+.agents-message-card {
+  border-radius: 8px;
+}
+
+.agents-empty-stack {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.agents-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.agent-card {
+  cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.agent-card:hover {
+  border-color: rgba(173, 92, 255, 0.36);
+  box-shadow: 0 16px 44px rgba(5, 5, 5, 0.08);
+  transform: translateY(-1px);
+}
+
+.agent-card-header {
+  gap: 10px;
+}
+
+.agent-card-topline,
+.agent-card-links,
+.agent-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.agent-card-lineage {
+  background: #eaf8ee;
+  border-color: #b8dfc3;
+  color: #2d6840;
+}
+
+.agent-card-positioning {
+  border-left: 3px solid var(--accent);
+  color: var(--text);
+  font-weight: 700;
+  padding-left: 12px;
+}
+
+.agent-card-content {
+  display: grid;
+  gap: 14px;
+}
+
+.agent-card-meta,
+.agent-card-economics {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.agent-card-meta-item,
+.agent-card-field {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.agent-card-meta-item span,
+.agent-card-field span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.agent-card-meta-item strong,
+.agent-card-field code {
+  overflow-wrap: anywhere;
+}
+
+.agent-card-skills {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.agent-skill-pill {
+  background: rgba(251, 248, 255, 0.9);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.agent-skill-pill span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-skill-pill.muted {
+  background: var(--panel-2);
+}
+
+.agent-card-details {
+  border-top: 1px solid var(--line);
+  padding-top: 2px;
+}
+
+.agent-card-details summary {
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 800;
+  list-style: none;
+  padding: 8px 0 2px;
+}
+
+.agent-card-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.agent-card-details-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.agent-card-actions {
+  align-items: center;
+}
+
+.agent-card-footer {
+  justify-content: flex-start;
+}
+
 .proof {
   border-left: 3px solid var(--accent);
   color: var(--muted);
@@ -1857,6 +2104,11 @@ textarea.capability-input {
   padding: clamp(16px, 3vw, 32px);
 }
 
+.create-shell.forging {
+  align-content: center;
+  justify-items: center;
+}
+
 .create-head {
   align-items: stretch;
   display: grid;
@@ -1994,6 +2246,20 @@ textarea.capability-input {
   margin-top: 12px;
 }
 
+.create-compose-banner .ui-alert-description {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.inline-link {
+  color: var(--text);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .create-card-actions {
   align-items: center;
   flex-wrap: wrap;
@@ -2026,18 +2292,68 @@ textarea.capability-input {
   align-items: stretch;
   display: grid;
   gap: 14px;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr);
+  justify-self: center;
+  width: min(1180px, 100%);
   min-height: 0;
+}
+
+.create-progress-stage {
+  align-content: center;
+  min-height: min(620px, calc(100dvh - 174px));
 }
 
 .create-progress-card {
   align-content: center;
   display: grid;
+  min-height: 0;
 }
 
-.create-progress-card .ui-card-title {
+.create-progress-layout {
+  align-items: stretch;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.36fr);
+  min-height: min(420px, calc(100dvh - 190px));
+}
+
+.create-progress-main {
+  align-content: center;
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.create-progress-main h2 {
   font-size: clamp(32px, 5vw, 58px);
   font-weight: 500;
+  letter-spacing: 0;
+  line-height: 0.98;
+  margin: 10px 0 0;
+}
+
+.create-progress-main p,
+.create-progress-pipeline p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.create-progress-pipeline {
+  border-left: 1px solid var(--line);
+  display: grid;
+  gap: 14px;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  padding-left: 18px;
+}
+
+.create-progress-pipeline h3 {
+  font-size: 18px;
+  margin: 0 0 6px;
+}
+
+.create-progress-pipeline-scroll {
+  max-height: min(320px, calc(100dvh - 280px));
 }
 
 .create-progress-content {
@@ -2518,6 +2834,23 @@ textarea.capability-input {
     margin-top: 8px;
   }
 
+  .agents-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .agents-grid,
+  .agents-stats,
+  .agent-card-meta,
+  .agent-card-skills,
+  .agent-card-economics {
+    grid-template-columns: 1fr;
+  }
+
+  .agents-empty-stack {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .agent-detail-shell {
     max-width: none;
   }
@@ -2576,12 +2909,28 @@ textarea.capability-input {
   .breed-compose-grid,
   .breed-parent-grid,
   .create-progress-grid,
+  .create-progress-layout,
   .create-review-head,
   .create-review-metrics,
   .create-summary-grid,
   .create-private-grid,
   .create-skill-grid {
     grid-template-columns: 1fr;
+  }
+
+  .create-progress-layout {
+    min-height: auto;
+  }
+
+  .create-progress-pipeline {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding-left: 0;
+    padding-top: 16px;
+  }
+
+  .create-progress-pipeline-scroll {
+    max-height: none;
   }
 
   .create-review-actions {

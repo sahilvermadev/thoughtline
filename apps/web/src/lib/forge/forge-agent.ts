@@ -21,7 +21,11 @@ export interface ForgeInput {
   encryptionKey: EncryptionKey;
   publicMetadata?: Pick<
     PublicProfile,
-    "expertiseType" | "sourceLabels" | "sourceCount" | "positioning"
+    | "expertiseType"
+    | "sourceLabels"
+    | "sourceCount"
+    | "desiredCapabilities"
+    | "positioning"
   >;
   emit?: ProgressEmitter;
   synthesizeGenome: () => Promise<{

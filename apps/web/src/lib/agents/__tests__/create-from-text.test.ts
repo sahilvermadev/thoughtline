@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { LLMProvider, LLMMessage } from "@thoughtline/shared";
 import { createAgentArchive } from "../../agent-archive/index";
 import { createMemoryStorage } from "../../storage/memory";
-import { createAgentFromText } from "../create-from-text";
+import { createAgentFromText, splitTextIntoChunks } from "../create-from-text";
 import type { EncryptionKey } from "../../crypto/index";
 
 function fakeLLM(
@@ -29,6 +29,93 @@ const validWorldview = {
   blindspots: ["Overvalues novelty"],
   decisionStyle: "analytical" as const,
   freeform: "A thoughtful analyst who values truth.",
+  operatingModel: {
+    identity: {
+      role: "Research decision analyst",
+      background: "Synthesized from research memos.",
+      expertiseBoundary: "Research decisions and tradeoff reviews.",
+      influences: ["research memos"],
+    },
+    worldview: {
+      coreBeliefs: ["Truth beats convenience."],
+      defaultAssumptions: ["Evidence quality determines confidence."],
+      tensions: [
+        {
+          tension: "Speed matters, but unsupported claims should slow decisions.",
+          poles: ["speed", "evidence"],
+          howToResolve: "Move quickly only when evidence quality is visible.",
+          evidenceLabels: ["memo"],
+        },
+      ],
+    },
+    decisionMaking: {
+      tradeoffRules: [
+        {
+          when: "Evidence conflicts with preference",
+          prefer: "the better-supported claim",
+          over: "the more convenient answer",
+          rationale: "The sources reward honesty over speed.",
+          evidenceLabels: ["memo"],
+        },
+      ],
+      rubrics: [
+        {
+          domain: "Research review",
+          criteria: ["evidence quality"],
+          redFlags: ["unsupported claim"],
+          greenFlags: ["clear source trail"],
+          evidenceLabels: ["case study"],
+        },
+      ],
+      confidenceModel: {
+        highConfidenceWhen: ["Multiple sources agree"],
+        lowConfidenceWhen: ["The input lacks examples"],
+        askClarifyingQuestionsWhen: ["The decision target is unclear"],
+      },
+    },
+    persona: {
+      tone: "direct",
+      temperament: "careful",
+      communicationStyle: "evidence-led",
+    },
+    boundaries: {
+      refuses: ["Inventing evidence"],
+      escalates: ["Regulated professional advice"],
+      asksClarifyingQuestionsWhen: ["The request lacks a decision criterion"],
+    },
+    examples: {
+      decisionExamples: [
+        {
+          situation: "A claim lacks supporting data",
+          judgment: "Treat it as a hypothesis.",
+          reasoning: "Unsupported claims should not drive decisions.",
+          evidenceLabels: ["memo"],
+        },
+      ],
+      phrasingExamples: ["The evidence is not strong enough yet."],
+    },
+  },
+  styleModel: {
+    voicePrinciples: ["Be direct and evidence-led."],
+    vocabulary: {
+      uses: ["evidence", "tradeoff"],
+      avoids: ["guaranteed"],
+    },
+    rhetoricalMoves: ["Names the uncertainty before the recommendation"],
+    toneShifts: [{ context: "thin evidence", tone: "more cautious" }],
+    antiPatterns: ["Overconfident claims"],
+    examples: {
+      good: [
+        {
+          text: "The evidence is not strong enough yet.",
+          why: "It calibrates confidence before advising.",
+          evidenceLabels: ["memo"],
+        },
+      ],
+      bad: [{ text: "This will definitely work.", why: "It overclaims." }],
+    },
+    platformNotes: ["Keep public skill wording concrete."],
+  },
 };
 
 const validSkill = {
@@ -58,6 +145,7 @@ Use this for difficult choices.
 Return a recommendation.`,
   source: "genesis" as const,
   parentSkillIds: [],
+  creationBasis: "user-guided" as const,
 };
 
 const validExtraction = {
@@ -83,6 +171,7 @@ describe("createAgentFromText", () => {
         sources: [{ text: "I believe in curiosity and honesty above all." }],
         expertiseType: "Research decision analyst",
         sourceLabels: ["memo", "case study"],
+        desiredCapabilities: ["Review pitch decks", "Critique onboarding flows"],
         encryptionKey: testKey(),
       },
       { llm, archive }
@@ -100,6 +189,10 @@ describe("createAgentFromText", () => {
     expect(agent.publicProfile.positioning).toBe("Research decision analyst");
     expect(agent.publicProfile.sourceLabels).toEqual(["memo", "case study"]);
     expect(agent.publicProfile.sourceCount).toBe(1);
+    expect(agent.publicProfile.desiredCapabilities).toEqual([
+      "Review pitch decks",
+      "Critique onboarding flows",
+    ]);
     expect(agent.publicUri).toBeTruthy();
     expect(agent.privateUri).toBeTruthy();
     expect(agent.dataHash).toMatch(/^[0-9a-f]{64}$/);
@@ -112,6 +205,10 @@ describe("createAgentFromText", () => {
     );
     expect(fetched.publicProfile.name).toBe("The Analyst");
     expect(fetched.publicProfile.sourceLabels).toEqual(["memo", "case study"]);
+    expect(fetched.publicProfile.desiredCapabilities).toEqual([
+      "Review pitch decks",
+      "Critique onboarding flows",
+    ]);
     expect(fetched.privateWorldview).toEqual(validWorldview);
   });
 
@@ -138,6 +235,7 @@ describe("createAgentFromText", () => {
         name: "Test",
         expertiseType: "Enterprise risk reviewer",
         sourceLabels: ["blog", "book"],
+        desiredCapabilities: ["Review risk memos"],
         sources: [
           { label: "blog post", text: "I value freedom." },
           { label: "book excerpt", text: "Discipline is the path." },
@@ -159,29 +257,89 @@ describe("createAgentFromText", () => {
       "Expertise type / positioning: Enterprise risk reviewer"
     );
     expect(capturedPrompt).toContain("Source labels: blog, book");
+    expect(capturedPrompt).toContain("Desired capabilities: Review risk memos");
   });
 
-  it("summarizes sources individually when total text exceeds threshold", async () => {
+  it("passes operating model context into skill synthesis", async () => {
+    const archive = createAgentArchive(createMemoryStorage());
+    const prompts: string[] = [];
+    const llm = fakeLLM(
+      [
+        JSON.stringify(validExtraction),
+        JSON.stringify(validSkillsExtraction),
+        "A description.",
+      ],
+      (messages) => {
+        prompts.push(messages.at(-1)?.content ?? "");
+      }
+    );
+
+    await createAgentFromText(
+      {
+        name: "Test",
+        sources: [{ label: "memo", text: "Evidence first." }],
+        encryptionKey: testKey(),
+      },
+      { llm, archive }
+    );
+
+    const skillPrompt = prompts.find((prompt) =>
+      prompt.includes("Create 3-5 public skill packages")
+    );
+    expect(skillPrompt).toContain("Operating model summary");
+    expect(skillPrompt).toContain("Research decision analyst");
+    expect(skillPrompt).toContain("Evidence conflicts with preference");
+  });
+
+  it("splits text into deterministic chunks", () => {
+    expect(splitTextIntoChunks("aaaa\n\nbbbbbbbb\n\ncccc", 16)).toEqual([
+      "aaaa\n\nbbbbbbbb",
+      "cccc",
+    ]);
+  });
+
+  it("extracts chunk evidence when total text exceeds threshold", async () => {
     const archive = createAgentArchive(createMemoryStorage());
     const chatCalls: LLMMessage[][] = [];
+    const events: string[] = [];
+    let activeChunkExtractions = 0;
+    let maxActiveChunkExtractions = 0;
 
-    // Large text: 3 sources each over 20k chars
-    const largeText = "x".repeat(20_000);
+    const largeText = "x".repeat(30_000);
 
     const llm: LLMProvider = {
       async chat(messages: LLMMessage[]) {
         chatCalls.push(messages);
         const callNum = chatCalls.length;
 
-        // Calls 1-3: summarize each source
-        if (callNum <= 3) return { content: `Summary of source ${callNum}.` };
-        // Call 4: extract worldview from summaries
-        if (callNum === 4) return { content: JSON.stringify(validExtraction) };
-        // Call 5: synthesize skills
-        if (callNum === 5) {
+        if (messages.at(-1)?.content.includes("Extract source-grounded evidence")) {
+          activeChunkExtractions += 1;
+          maxActiveChunkExtractions = Math.max(
+            maxActiveChunkExtractions,
+            activeChunkExtractions
+          );
+          await Promise.resolve();
+          activeChunkExtractions -= 1;
+          return {
+            content: JSON.stringify({
+              claims: [`Claim from chunk ${callNum}`],
+              heuristics: [`Heuristic from chunk ${callNum}`],
+              tradeoffs: [],
+              vocabulary: { uses: ["evidence"], avoids: [] },
+              examples: [],
+              contradictions: [],
+              influences: [],
+              voice: ["direct"],
+              evidenceLabels: [
+                `chunk-${callNum} ${"with a very long label".repeat(8)}`,
+              ],
+            }),
+          };
+        }
+        if (callNum === 7) return { content: JSON.stringify(validExtraction) };
+        if (callNum === 8) {
           return { content: JSON.stringify(validSkillsExtraction) };
         }
-        // Call 6: generate description
         return { content: "A description." };
       },
       async *chatStream() {
@@ -199,19 +357,32 @@ describe("createAgentFromText", () => {
         ],
         encryptionKey: testKey(),
       },
-      { llm, archive }
+      {
+        llm,
+        archive,
+        emit: (event) => {
+          events.push(event);
+        },
+      }
     );
 
-    // Should have 6 calls: 3 summarize + 1 worldview + 1 skills + 1 description
-    expect(chatCalls.length).toBe(6);
+    expect(chatCalls.length).toBe(9);
+    expect(
+      chatCalls.slice(0, 6).every((call) =>
+        call.at(-1)?.content.includes("Extract source-grounded evidence")
+      )
+    ).toBe(true);
+    expect(maxActiveChunkExtractions).toBe(1);
 
-    // The worldview extraction call (4th) should contain summaries, not raw text
-    const worldviewCall = chatCalls[3];
+    const worldviewCall = chatCalls[6];
     const userMsg = worldviewCall.find((m) => m.role === "user")!.content;
-    expect(userMsg).toContain("Summary of source 1");
-    expect(userMsg).toContain("Summary of source 2");
-    expect(userMsg).toContain("Summary of source 3");
-    expect(userMsg).not.toContain("x".repeat(100)); // raw text should NOT be in the prompt
+    expect(userMsg).toContain("chunk 1 extract");
+    expect(userMsg).toContain("Claim from chunk 1");
+    expect(userMsg).toContain("Claim from chunk 6");
+    expect(userMsg).not.toContain("x".repeat(100));
+    expect(
+      events.filter((event) => event === "extracting-source-chunk")
+    ).toHaveLength(6);
   });
 
   it("rejects empty sources array", async () => {

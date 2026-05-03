@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PrivateWorldview, PublicProfile, SkillPackage } from "@thoughtline/shared";
-import {
-  AUTHORIZED_RUNTIME_REQUIRES_V2_ENVELOPE_ERROR,
-  createAgentArchive,
-} from "@/lib/agent-archive";
+import { createAgentArchive } from "@/lib/agent-archive";
 import type { ThoughtLineChainReader } from "@/lib/chain/reader";
 import { createMemoryStorage } from "@/lib/storage/memory";
 import { createWebCryptoProvider, type EncryptionKey } from "@/lib/crypto";
@@ -63,7 +60,7 @@ describe("chain breeding access reader", () => {
     });
   });
 
-  it("rejects legacy private blobs for runtime breeding access", async () => {
+  it("explains that legacy private blobs must be unlocked before breeding", async () => {
     const storage = createMemoryStorage();
     const archive = createAgentArchive(storage);
     const publicStored = await archive.storePublic(publicProfile);
@@ -79,8 +76,34 @@ describe("chain breeding access reader", () => {
     });
 
     await expect(reader.getBreedingAccess("7")).rejects.toThrow(
-      AUTHORIZED_RUNTIME_REQUIRES_V2_ENVELOPE_ERROR
+      "Parent #7 was stored before runtime breeding access was enabled"
     );
+  });
+
+  it("uses a browser-supplied private worldview for legacy breeding parents", async () => {
+    const storage = createMemoryStorage();
+    const archive = createAgentArchive(storage);
+    const publicStored = await archive.storePublic(publicProfile);
+    const privateStored = await archive.storePrivate(privateWorldview, testKey());
+    const reader = createChainBreedingAccessReader({
+      storage,
+      archive,
+      privateWorldviews: {
+        "7": privateWorldview,
+      },
+      chain: fakeChain({
+        publicUri: publicStored.uri,
+        privateUri: privateStored.uri,
+        authorizedBreeders: [],
+      }),
+    });
+
+    await expect(reader.getBreedingAccess("7")).resolves.toEqual({
+      ownerAddress: "0x1111111111111111111111111111111111111111",
+      authorizedBreeders: [],
+      publicProfile,
+      privateWorldview,
+    });
   });
 });
 

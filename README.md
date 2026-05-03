@@ -1,6 +1,6 @@
 # ThoughtLine
 
-ThoughtLine is a hackathon tracer bullet for packaging expertise into interactive ERC-7857-style iNFT agents on 0G Galileo. A user connects a wallet, adds expertise notes, examples, work samples, and lightweight source labels, signs an unlock message, and receives mint transaction data for an agent whose public capability profile and encrypted private worldview are stored off-chain.
+ThoughtLine is a hackathon tracer bullet for packaging expertise into interactive ERC-7857-style iNFT agents on 0G Galileo. A user connects a wallet, adds desired capabilities, expertise notes, examples, work samples, and lightweight source labels, signs an unlock message, reviews the generated artifact, and receives mint transaction data for an agent whose public capability profile and encrypted private worldview are stored off-chain.
 
 ## What Works Now
 
@@ -139,13 +139,23 @@ Galileo details:
   "name": "My Agent",
   "expertiseType": "B2B onboarding teardown specialist",
   "sourceLabels": ["calls", "docs", "playbooks"],
+  "desiredCapabilities": ["Review onboarding flows", "Generate launch checklists"],
   "sources": [{ "label": "source", "text": "..." }],
+  "sourceUrls": ["https://nav.al/rich"],
   "ownerAddress": "0x...",
   "unlockSignature": "0x..."
 }
 ```
 
-`sourceLabels` are lightweight provenance signals for gallery discovery and inspection. They are not legal verification of source rights or authorship.
+`sources` can include pasted text or uploaded text-like files. `sourceUrls` can include direct `http` or `https` article links; the server fetches readable text and feeds it into the same source pipeline. `sourceLabels` are lightweight provenance signals for gallery discovery and inspection. They are not legal verification of source rights or authorship.
+
+For a local demo source file inspired by `nav.al/rich`, generate a cleaned markdown file:
+
+```bash
+pnpm demo:nav-rich
+```
+
+This writes `demo/input/nav-rich.md` with source metadata. The generated folder is gitignored so the article text is not committed.
 
 It streams:
 

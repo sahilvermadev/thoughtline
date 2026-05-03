@@ -419,6 +419,37 @@ describe("0G Compute provider", () => {
     expect(brokerMock.processResponse).not.toHaveBeenCalled();
   });
 
+  it("retries transient 0G failures before returning the assistant response", async () => {
+    let calls = 0;
+    server.use(
+      http.post("https://compute.example/v1/chat/completions", () => {
+        calls += 1;
+        if (calls === 1) {
+          return HttpResponse.json({ error: "busy" }, { status: 429 });
+        }
+        return HttpResponse.json(
+          {
+            id: "retry-chat-id",
+            choices: [{ message: { role: "assistant", content: "retried ok" } }],
+          },
+          { headers: { "ZG-Res-Key": "retry-chat-id" } }
+        );
+      })
+    );
+
+    const response = await createTestZeroGProvider().chat([
+      { role: "user", content: "test" },
+    ]);
+
+    expect(response.content).toBe("retried ok");
+    expect(calls).toBe(2);
+    expect(brokerMock.processResponse).toHaveBeenCalledWith(
+      "0x1234567890123456789012345678901234567890",
+      "retry-chat-id",
+      "{}"
+    );
+  });
+
   it("streams chunks and settles after the stream completes", async () => {
     const sseBody = [
       `data: ${JSON.stringify({ id: "stream-body-id", choices: [{ delta: { content: "Hello" } }] })}\n\n`,

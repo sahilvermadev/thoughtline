@@ -9,6 +9,7 @@ export function createSseStream(
       try {
         await run(send);
       } catch (error) {
+        console.error("SSE route failed", error);
         await send("error", {
           message: error instanceof Error ? error.message : String(error),
         });

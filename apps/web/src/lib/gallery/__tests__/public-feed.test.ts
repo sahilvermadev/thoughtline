@@ -22,6 +22,7 @@ const agent: PublicAgentView = {
     expertiseType: "Decision review specialist",
     sourceLabels: ["founder notes", "customer calls"],
     sourceCount: 2,
+    desiredCapabilities: ["Review pitch decks"],
     positioning: "Helps founders review launch decisions.",
     skills: [
       {
@@ -45,6 +46,7 @@ describe("public agent feed", () => {
     expect(filterPublicAgentFeed([agent], "0g://private")).toEqual([agent]);
     expect(filterPublicAgentFeed([agent], "customer calls")).toEqual([agent]);
     expect(filterPublicAgentFeed([agent], "launch decisions")).toEqual([agent]);
+    expect(filterPublicAgentFeed([agent], "pitch decks")).toEqual([agent]);
     expect(filterPublicAgentFeed([agent], "missing")).toEqual([]);
   });
 

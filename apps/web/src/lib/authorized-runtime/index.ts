@@ -116,6 +116,10 @@ function filterAuthorizedResponse(
     ...privateWorldview.blindspots,
     privateWorldview.decisionStyle,
     privateWorldview.freeform,
+    privateWorldview.operatingModel
+      ? JSON.stringify(privateWorldview.operatingModel)
+      : "",
+    privateWorldview.styleModel ? JSON.stringify(privateWorldview.styleModel) : "",
   ]
     .map(normalize)
     .filter((snippet) => snippet.length >= 12);

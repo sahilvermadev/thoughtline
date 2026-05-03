@@ -16,6 +16,7 @@ import {
 } from "@/lib/access-terms-browser-flow";
 import {
   breedAuthorizedChild,
+  canMintReviewedChild,
   type BreedingReadyPayload,
 } from "@/lib/breeding-browser-flow";
 import { getBrowserEthereum } from "@/lib/browser-wallet";
@@ -54,11 +55,14 @@ type BreedingState = {
   childBrief: string;
   events: string[];
   ready: BreedingReadyPayload | null;
+  isApproved: boolean;
   error: string | null;
   mintTxHash: `0x${string}` | null;
   isBreeding: boolean;
   isMinting: boolean;
 };
+
+const GALLERY_CACHE_KEY = "thoughtline.gallery.cache.v1";
 
 export function useAgentWorkbench() {
   const [search, setSearch] = useState("");
@@ -84,10 +88,11 @@ export function useAgentWorkbench() {
   const [breeding, setBreeding] = useState<BreedingState>({
     parentTokenIdA: "",
     parentTokenIdB: "",
-    childName: "Child ThoughtLine Agent",
+    childName: "",
     childBrief: "",
     events: [],
     ready: null,
+    isApproved: false,
     error: null,
     mintTxHash: null,
     isBreeding: false,
@@ -104,7 +109,13 @@ export function useAgentWorkbench() {
 
     async function loadGallery() {
       try {
-        setIsLoadingGallery(true);
+        const cachedAgents = loadCachedGalleryAgents();
+        if (cachedAgents.length > 0) {
+          setAgents(cachedAgents);
+          setIsLoadingGallery(false);
+        } else {
+          setIsLoadingGallery(true);
+        }
         setGalleryError(null);
         setGalleryWarning(null);
         const response = await fetch("/api/agents");
@@ -116,7 +127,16 @@ export function useAgentWorkbench() {
 
         const data = (await response.json()) as PublicAgentView[];
         if (active) {
-          setAgents(data);
+          if (data.length > 0) {
+            setAgents(data);
+            saveCachedGalleryAgents(data);
+          } else if (cachedAgents.length > 0) {
+            setGalleryWarning(
+              "Showing cached agents while the gallery sync catches up."
+            );
+          } else {
+            setAgents(data);
+          }
           const failures = parseGalleryFailures(response);
           if (failures.length > 0) {
             setGalleryWarning(
@@ -196,6 +216,13 @@ export function useAgentWorkbench() {
     };
   }, [agents, genesis.address]);
 
+  useEffect(() => {
+    if (genesis.address) return;
+    setUnlockedAgents({});
+    setAccessTerms({});
+    setFeeInputs({});
+  }, [genesis.address]);
+
   return {
     search,
     setSearch,
@@ -218,6 +245,8 @@ export function useAgentWorkbench() {
       setBreeding((current) => ({ ...current, childName })),
     setBreedingChildBrief: (childBrief: string) =>
       setBreeding((current) => ({ ...current, childBrief })),
+    approveBreedChildReview: () =>
+      setBreeding((current) => ({ ...current, isApproved: true })),
     genesis,
     setFeeInput: (
       tokenId: string,
@@ -246,7 +275,7 @@ export function useAgentWorkbench() {
           ...current,
           [agent.tokenId]: {
             status: "error",
-            error: "Enter a valid ETH amount.",
+            error: "Enter a valid 0G amount.",
             terms: accessTermsValue(current[agent.tokenId]),
           },
         }));
@@ -514,12 +543,15 @@ export function useAgentWorkbench() {
         ...current,
         events: [],
         ready: null,
+        isApproved: false,
         error: null,
         mintTxHash: null,
         isBreeding: true,
       }));
 
       try {
+        const unlockedParentA = unlockedAgents[breeding.parentTokenIdA];
+        const unlockedParentB = unlockedAgents[breeding.parentTokenIdB];
         const ready = await breedAuthorizedChild({
           parentTokenIdA: breeding.parentTokenIdA,
           parentTokenIdB: breeding.parentTokenIdB,
@@ -527,6 +559,14 @@ export function useAgentWorkbench() {
           childBrief: breeding.childBrief.trim() || undefined,
           callerAddress: genesis.address,
           ethereum: getBrowserEthereum(),
+          parentWorldviewA:
+            unlockedParentA?.status === "ready"
+              ? unlockedParentA.worldview
+              : undefined,
+          parentWorldviewB:
+            unlockedParentB?.status === "ready"
+              ? unlockedParentB.worldview
+              : undefined,
           onEvent: (event, data) => {
             setBreeding((current) => ({
               ...current,
@@ -554,6 +594,19 @@ export function useAgentWorkbench() {
     },
     mintBreedChild: async () => {
       if (!genesis.address) return;
+      if (
+        !canMintReviewedChild({
+          ready: breeding.ready,
+          isMinting: breeding.isMinting,
+          isApproved: breeding.isApproved,
+        })
+      ) {
+        setBreeding((current) => ({
+          ...current,
+          error: "Approve the generated child artifact before minting.",
+        }));
+        return;
+      }
       if (!breeding.ready?.mintTransaction.to) {
         setBreeding((current) => ({
           ...current,
@@ -598,6 +651,27 @@ export function useAgentWorkbench() {
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function loadCachedGalleryAgents(): PublicAgentView[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(GALLERY_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? (parsed as PublicAgentView[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCachedGalleryAgents(agents: PublicAgentView[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(GALLERY_CACHE_KEY, JSON.stringify(agents));
+  } catch {
+    // Cache is best-effort only.
+  }
 }
 
 function accessTermsValue(

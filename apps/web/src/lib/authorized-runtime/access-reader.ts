@@ -1,4 +1,4 @@
-import type { StorageProvider } from "@thoughtline/shared";
+import type { PrivateWorldview, StorageProvider } from "@thoughtline/shared";
 import type { AgentArchive } from "../agent-archive/index";
 import type { ThoughtLineChainReader } from "../chain/reader";
 import type { AgentAccessReader, AgentAccessRecord } from "./index";
@@ -9,6 +9,7 @@ export interface ChainAgentAccessReaderDeps {
   chain: ThoughtLineChainReader;
   storage: StorageProvider;
   archive?: AgentArchive;
+  privateWorldviews?: Record<string, PrivateWorldview>;
 }
 
 export function createChainAgentAccessReader(

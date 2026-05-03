@@ -1,11 +1,14 @@
 "use client";
 
-import type { PublicProfile } from "@thoughtline/shared";
+import type { PrivateWorldview, PublicProfile } from "@thoughtline/shared";
+import type { PrivateWorldviewSummary } from "@/lib/agent-artifact";
 import { buildUnlockMessage } from "../unlock";
 import { readSse, type EthereumProvider, type Hex } from "../genesis-browser-flow";
 
 export type BreedingReadyPayload = {
   publicProfile: PublicProfile;
+  privateWorldview?: PrivateWorldview;
+  privateWorldviewSummary?: PrivateWorldviewSummary;
   publicUri: string;
   privateUri: string;
   dataHash: Hex;
@@ -22,6 +25,8 @@ export interface AuthorizedBreedingBrowserInput {
   ethereum: EthereumProvider;
   fetch?: typeof globalThis.fetch;
   onEvent?: (event: string, data: unknown) => void;
+  parentWorldviewA?: PrivateWorldview;
+  parentWorldviewB?: PrivateWorldview;
 }
 
 export async function breedAuthorizedChild(
@@ -50,6 +55,8 @@ export async function breedAuthorizedChild(
       childName: input.childName,
       childBrief: input.childBrief,
       unlockSignature,
+      ...(input.parentWorldviewA ? { parentWorldviewA: input.parentWorldviewA } : {}),
+      ...(input.parentWorldviewB ? { parentWorldviewB: input.parentWorldviewB } : {}),
     }),
   });
 
@@ -67,4 +74,16 @@ export async function breedAuthorizedChild(
 
   if (!ready) throw new Error("Breeding finished without a child artifact");
   return ready;
+}
+
+export function canMintReviewedChild(input: {
+  ready: Pick<BreedingReadyPayload, "mintTransaction"> | null;
+  isMinting: boolean;
+  isApproved: boolean;
+}): boolean {
+  return (
+    input.isApproved &&
+    !input.isMinting &&
+    Boolean(input.ready?.mintTransaction.to)
+  );
 }

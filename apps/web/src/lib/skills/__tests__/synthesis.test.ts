@@ -93,7 +93,8 @@ Return findings.`,
   it("rejects public skill markdown that leaks private worldview text", async () => {
     const leakingWorldview: PrivateWorldview = {
       ...worldview,
-      heuristics: ["This exact private heuristic should not be public"],
+      freeform:
+        "This exact private operating passage should not be copied into public skill markdown because it reveals a long hidden model detail.",
     };
 
     await expect(
@@ -106,7 +107,7 @@ Return findings.`,
                 name: "Leaky Skill",
                 description: "Leaks private text.",
                 skillMarkdown:
-                  "This exact private heuristic should not be public",
+                  "This exact private operating passage should not be copied into public skill markdown because it reveals a long hidden model detail.",
                 source: "synthesized",
                 parentSkillIds: [],
               },

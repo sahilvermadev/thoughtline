@@ -1,4 +1,17 @@
+import {
+  GlobalWorkerOptions,
+  getDocument,
+  PDFWorker,
+} from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { TextSource } from "@/lib/agents/create-from-text";
+
+GlobalWorkerOptions.workerSrc =
+  typeof window === "undefined"
+    ? new URL(
+        "../../../node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+        import.meta.url
+      ).toString()
+    : "/pdf.worker.min.mjs";
 
 export const SUPPORTED_EXTENSIONS = [
   ".txt",
@@ -23,6 +36,7 @@ export const SUPPORTED_EXTENSIONS = [
   ".h",
   ".html",
   ".css",
+  ".pdf",
 ] as const;
 
 export const MAX_FILE_BYTES = 2_000_000;
@@ -31,7 +45,7 @@ export const MAX_URL_SOURCE_BYTES = 2_000_000;
 export class UnsupportedFileError extends Error {
   constructor(filename: string) {
     super(
-      `Unsupported file type: ${filename}. PDF/OCR ingestion is not supported yet; attach a text-like file such as .md or .txt.`
+      `Unsupported file type: ${filename}. Attach a text-like file or a PDF.`
     );
     this.name = "UnsupportedFileError";
   }
@@ -67,6 +81,11 @@ export async function extractTextSource(file: File): Promise<TextSource> {
   if (file.size > MAX_FILE_BYTES) {
     throw new FileTooLargeError(file.name, file.size);
   }
+
+  if (hasPdfExtension(file.name)) {
+    return extractPdfTextSource(file);
+  }
+
   const text = await file.text();
   if (text.trim().length === 0) {
     throw new EmptyFileError(file.name);
@@ -77,6 +96,55 @@ export async function extractTextSource(file: File): Promise<TextSource> {
 function hasSupportedExtension(filename: string): boolean {
   const lower = filename.toLowerCase();
   return SUPPORTED_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
+function hasPdfExtension(filename: string): boolean {
+  return filename.toLowerCase().endsWith(".pdf");
+}
+
+async function extractPdfTextSource(file: File): Promise<TextSource> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const worker = new PDFWorker({ port: null });
+
+  try {
+    const document = await getDocument({
+      data: bytes,
+      worker,
+      disableRange: true,
+      disableStream: true,
+      disableFontFace: true,
+      useSystemFonts: true,
+      useWorkerFetch: false,
+      stopAtErrors: true,
+      verbosity: 0,
+    }).promise;
+
+    const pages: string[] = [];
+    for (let index = 1; index <= document.numPages; index += 1) {
+      const page = await document.getPage(index);
+      const content = await page.getTextContent();
+      const pageText = content.items
+        .map((item) => ("str" in item ? item.str : ""))
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (pageText) pages.push(pageText);
+    }
+
+    const text = pages.join("\n\n").trim();
+    if (!text) {
+      throw new EmptyFileError(file.name);
+    }
+
+    return { label: file.name, text };
+  } catch (error) {
+    if (error instanceof EmptyFileError) throw error;
+    throw new Error(
+      `Could not extract text from PDF ${file.name}: ${formatError(error)}`
+    );
+  } finally {
+    worker.destroy();
+  }
 }
 
 export async function fetchUrlSource(
@@ -216,4 +284,8 @@ function decodeEntities(value: string): string {
 
 function escapeYaml(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

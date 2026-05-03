@@ -43,7 +43,7 @@ const publicProfile: PublicProfile = {
 };
 
 describe("agent workbench browser helpers", () => {
-  it("unlocks an owned agent using a token-scoped signature", async () => {
+  it("unlocks an owned genesis agent using the creation-scoped signature", async () => {
     const storage = createMemoryStorage();
     const archive = createAgentArchive(storage);
     const key = await deriveUnlockKey(signature);
@@ -62,9 +62,9 @@ describe("agent workbench browser helpers", () => {
       method: "personal_sign",
       params: [
         buildUnlockMessage({
-          scope: "agent-token",
+          scope: "genesis",
           ownerAddress: owner.toUpperCase(),
-          tokenId: "7",
+          agentName: "The Analyst",
         }),
         owner.toUpperCase(),
       ],
