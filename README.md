@@ -1,244 +1,53 @@
 # ThoughtLine
 
-ThoughtLine is a hackathon tracer bullet for packaging expertise into interactive ERC-7857-style iNFT agents on 0G Galileo. A user connects a wallet, adds desired capabilities, expertise notes, examples, work samples, and lightweight source labels, signs an unlock message, reviews the generated artifact, and receives mint transaction data for an agent whose public capability profile and encrypted private worldview are stored off-chain.
+A hackathon prototype for creating AI agents from source material, publishing their capabilities, encrypting their private data and controlling usage through on-chain authorization.
 
-## What Works Now
+**Next.js / React / TypeScript · Solidity / Hardhat · Vitest · 0G Storage**
 
-- Genesis-from-text flow in the web app.
-- Split agent genome:
-  - Public profile: `name`, `description`, `skills`, `generation`, `parentIds`, and optional expertise/source metadata.
-  - Private worldview: `values`, `heuristics`, `blindspots`, `decisionStyle`, `freeform`.
-- AES-GCM encryption of the private worldview using a wallet-signature-derived key.
-- V2 private worldview envelopes for new agents when an authorized runtime public
-  key is configured: the worldview is encrypted with a random data key, then the
-  data key is wrapped for owner unlock and for the demo authorized runtime.
-- Byte-shaped storage seam with memory and 0G Storage adapters.
-- 0G Storage adapter for upload/fetch by `0g://<rootHash>`.
-- Genesis SSE route: `POST /api/genesis`.
-- Mint calldata for `mintGenesis(publicUri, privateUri, dataHash)`.
-- Minimal ERC-7857-style contract with lineage, separate usage/breeding authorization, and a stub `TEEVerifier`.
-- Deploy script for 0G Galileo.
-- Proof helper that fetches encrypted private bytes and checks their SHA-256 against `dataHash`.
-- Public gallery, proof UI, owner unlock for existing iNFTs, skill invocation, paid usage access, and authorized breeding UI/API.
-- 0G Compute-backed LLM provider for genesis, owner conversation, authorized ask, and breeding when `LLM_PROVIDER=0g-compute`.
+[Product specification](docs/PRD.md) · [Development and historical demo artifacts](docs/DEVELOPMENT.md) · [Web tests](apps/web/src/lib) · [Contract tests](packages/contracts/test/ThoughtLineAgent.ts)
 
-Not done yet: real 0G Sealed Inference / TEE-attested execution and breeding-payment UI for paying to become an authorized breeder.
+## What it does
 
-## Live 0G Galileo Demo Artifacts
+1. Connect a wallet and provide expertise notes, examples or source material.
+2. Stream generation progress while creating a public capability profile and an encrypted private worldview.
+3. Prepare a mint transaction linking off-chain content to an on-chain ciphertext hash.
+4. Browse public profiles, unlock owned agents, or invoke agents through authorized usage. Usage and breeding permissions are separate.
 
-- ThoughtLineAgent: `0xCE417B89Cf7839502C3dcE93FeE4828D442bbff2`
-- TEEVerifier: `0x79860Be4236dAbA300750191Bb00Dee899d9f12C`
-- Explorer contract link: `https://chainscan-galileo.0g.ai/address/0xCE417B89Cf7839502C3dcE93FeE4828D442bbff2`
-- Smoke genesis iNFT token: `0`
-- Smoke mint transaction: `https://chainscan-galileo.0g.ai/tx/0xffc23c0c3e8e8106f7dcf24dc4d91112f68a20216d24237324fe35a59bf7473e`
-- Smoke public URI: `0g://0xcda254d304b1809a1b5293f4299223b1b45596b1d9a7d8d920fa9d354ab073d3`
-- Smoke private URI: `0g://0xdb499c8ab12d6eaebd1ed93ecec506613777fc91349407429c57e0c61e39e392`
-- Smoke data hash: `0x492a5a2895b7162243780407a9687758ddce359b4d4190b355e3f416152f448a`
+**Status:** hackathon/testnet prototype. This is not an audited contract system or a production confidential-computing service. The TEE verifier is a stub. Authorized non-owner execution runs in an ordinary server process with a server-held runtime key; real enclave execution and TEE-held key custody are not implemented. Historical testnet addresses and the recorded storage/hash smoke result are preserved in the development notes; their continued availability has not been revalidated here.
 
-The smoke proof returned `matches: true`: the SHA-256 hash of the encrypted private-worldview bytes fetched from 0G Storage equals the on-chain `dataHash`.
+## Engineering entry points
 
-## Run Locally
+| Concern | Implementation | Tests |
+| --- | --- | --- |
+| Access boundaries | [Usage and breeding authorization](apps/web/src/lib/authorization/access.ts) | [Access checks](apps/web/src/lib/authorization/__tests__/access.test.ts) |
+| Private artifact handling | [Agent artifact](apps/web/src/lib/agent-artifact/index.ts) | [Artifact tests](apps/web/src/lib/agent-artifact/__tests__/agent-artifact.test.ts) |
+| Replaceable storage | [Storage interface and adapters](apps/web/src/lib/storage/index.ts) | [Storage tests](apps/web/src/lib/storage/__tests__/storage.test.ts) |
+| Provider integration | [LLM provider factory](apps/web/src/lib/llm/provider.ts), [structured extraction](apps/web/src/lib/llm/extract-structured.ts) | [Provider tests](apps/web/src/lib/llm/__tests__/provider.test.ts), [extraction tests](apps/web/src/lib/llm/__tests__/extract-structured.test.ts) |
+| On-chain rights and lineage | [ThoughtLineAgent](packages/contracts/contracts/ThoughtLineAgent.sol) | [Hardhat contract tests](packages/contracts/test/ThoughtLineAgent.ts) |
 
-Install dependencies from the repo root:
+The web routes use server-sent events for long-running generation. Provider and storage implementations sit behind interfaces. The V1 demo recovers its published state from the chain and storage; the checked-in Drizzle database scaffolding is not required for that path.
+
+## Local setup
+
+Use Node.js 22 and **pnpm 10.33.0**, matching the package-manager declaration. From the repository root:
 
 ```bash
-pnpm install
-```
-
-Create a local web env file:
-
-```bash
+pnpm install --frozen-lockfile
 cp apps/web/.env.example apps/web/.env.local
-```
-
-For local development, memory storage is enough:
-
-```bash
-STORAGE_ADAPTER=memory
-LLM_PROVIDER=openrouter
-OPENROUTER_API_KEY=...
-OPENROUTER_MODEL=anthropic/claude-3.5-sonnet
-NEXT_PUBLIC_CHAIN_ID=16602
-NEXT_PUBLIC_CONTRACT_ADDRESS=...
-AUTHORIZED_RUNTIME_PUBLIC_KEY_JWK=...
-AUTHORIZED_RUNTIME_PRIVATE_KEY_JWK=...
-```
-
-Start the web app:
-
-```bash
+pnpm --filter @thoughtline/shared build
 pnpm --filter web dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000`. Memory storage supports local development; full generation still needs your own configured LLM provider key, and minting needs a wallet and matching testnet contract. Configure values in `apps/web/.env.local` using the [example](apps/web/.env.example). The authorized-runtime flow additionally needs its RSA-OAEP JWK configuration. Never put private provider, wallet or runtime keys in public browser variables.
 
-You can also start all workspace dev tasks through Turbo:
-
-```bash
-pnpm dev
-```
-
-For 0G Storage:
+## Checks
 
 ```bash
-STORAGE_ADAPTER=0g
-OG_PRIVATE_KEY=...
-OG_STORAGE_INDEXER=https://indexer-storage-testnet-turbo.0g.ai
-```
-
-For 0G Compute through the direct provider path:
-
-```bash
-LLM_PROVIDER=0g-compute
-OG_COMPUTE_PROVIDER_ADDRESS=0xa48f01287233509FD694a22Bf840225062E67836
-OG_COMPUTE_MODEL=qwen/qwen-2.5-7b-instruct
-OG_PRIVATE_KEY=...
-OG_RPC_URL=https://evmrpc-testnet.0g.ai
-```
-
-The current UI uses the browser wallet provider directly. It asks the wallet to:
-
-1. connect accounts,
-2. sign a deterministic genesis unlock message,
-3. submit the `mintGenesis` transaction after the backend prepares the artifact.
-
-## Contracts
-
-Compile and test:
-
-```bash
-pnpm --filter contracts build
-pnpm --filter contracts test
-```
-
-Deploy to 0G Galileo:
-
-```bash
-DEPLOYER_PRIVATE_KEY=... pnpm --filter contracts deploy
-```
-
-The deploy script prints:
-
-- `TEE_VERIFIER_ADDRESS`
-- `NEXT_PUBLIC_CONTRACT_ADDRESS`
-- `NEXT_PUBLIC_CHAIN_ID=16602`
-- 0G Galileo explorer links
-
-Galileo details:
-
-- Chain ID: `16602`
-- RPC: `https://evmrpc-testnet.0g.ai`
-- Explorer: `https://chainscan-galileo.0g.ai`
-
-## Genesis Flow
-
-`POST /api/genesis` accepts:
-
-```json
-{
-  "name": "My Agent",
-  "expertiseType": "B2B onboarding teardown specialist",
-  "sourceLabels": ["calls", "docs", "playbooks"],
-  "desiredCapabilities": ["Review onboarding flows", "Generate launch checklists"],
-  "sources": [{ "label": "source", "text": "..." }],
-  "sourceUrls": ["https://nav.al/rich"],
-  "ownerAddress": "0x...",
-  "unlockSignature": "0x..."
-}
-```
-
-`sources` can include pasted text or uploaded text-like files. `sourceUrls` can include direct `http` or `https` article links; the server fetches readable text and feeds it into the same source pipeline. `sourceLabels` are lightweight provenance signals for gallery discovery and inspection. They are not legal verification of source rights or authorship.
-
-For a local demo source file inspired by `nav.al/rich`, generate a cleaned markdown file:
-
-```bash
-pnpm demo:nav-rich
-```
-
-This writes `demo/input/nav-rich.md` with source metadata. The generated folder is gitignored so the article text is not committed.
-
-It streams:
-
-```text
-preparing
-synthesizing-worldview
-synthesizing-skills
-encrypting
-uploading
-ready
-```
-
-The `ready` event includes public mint artifacts only:
-
-- `publicProfile`
-- `publicUri`
-- `publicHash`
-- `privateUri`
-- `dataHash`
-- `mintCalldata`
-- `mintTransaction`
-
-It does not return the private worldview.
-
-## Embedded Intelligence Proof
-
-The contract stores `dataHash`, the SHA-256 hash of the encrypted private-worldview bytes.
-
-Anyone can verify the embedded-data claim:
-
-1. Read `privateUri` and `dataHash` from the minted iNFT.
-2. Fetch encrypted bytes from storage using `privateUri`.
-3. SHA-256 hash those encrypted bytes.
-4. Confirm the result equals on-chain `dataHash`.
-
-The helper lives at:
-
-```text
-apps/web/src/lib/proof/private-data.ts
-```
-
-Its interface is:
-
-```ts
-verifyPrivateDataHash({ storage, privateUri, dataHash })
-```
-
-This proves the private data bytes are embedded by content hash. It does not decrypt the worldview.
-
-## V1 TEE Honesty
-
-ThoughtLine V1 includes a `TEEVerifier` contract and runtime seams shaped for sealed execution, but it does not run a real enclave yet.
-
-For the hackathon version:
-
-- The verifier is a stub.
-- Owner unlock happens with normal wallet signatures.
-- Authorized non-owner ask runs in normal server code using
-  `AUTHORIZED_RUNTIME_PRIVATE_KEY_JWK` to unwrap V2 private worldview envelopes.
-- Real 0G Sealed Inference / TEE-held key custody is future work.
-
-The architecture is intended to swap the stub runtime for real 0G sealed execution without changing the on-chain public/private pointer model.
-
-## Test
-
-Full workspace checks:
-
-```bash
-pnpm test
+pnpm --filter @thoughtline/shared build
+pnpm --filter web test
+pnpm --filter web exec tsc --noEmit
+pnpm --filter @thoughtline/contracts test
 pnpm build
 ```
 
-Useful focused checks:
-
-```bash
-pnpm --filter web test
-pnpm --filter web exec tsc --noEmit
-pnpm --filter web build
-pnpm --filter contracts test
-```
-
-0G live storage roundtrip is env-gated:
-
-```bash
-VITEST_0G=1 STORAGE_ADAPTER=0g OG_PRIVATE_KEY=... pnpm --filter web test
-```
+These are the checked-in test/build entry points, not a claim that they were rerun for this documentation update. The storage suite's live 0G roundtrip is explicitly gated by `VITEST_0G=1`; leave it unset for ordinary review. Unit tests do not establish live testnet or provider availability. See [development notes](docs/DEVELOPMENT.md) for deployment, optional integrations and historical artifacts.
