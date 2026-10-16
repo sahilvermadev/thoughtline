@@ -1,0 +1,2 @@
+# Bundled third-party libraries are not authored application code.
+/apps/web/public/pdf.worker.min.mjs linguist-vendored=true
